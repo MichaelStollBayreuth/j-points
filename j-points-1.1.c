@@ -1,4 +1,14 @@
-/******* j-points-1.0.c **************************************************/
+/******* j-points-1.1.c **************************************************
+ *                                                                       * 
+ * Change Log:                                                           *
+ *                                                                       *
+ * + version 1.1, 2006-08-09, Michael Stoll:                             *
+ *   Removed a call 'mpz_mul_ui(&fff, &fff, (unsigned long)b)'           *
+ *   in check_lifts that let the program miss points of the form         *
+ *   (0 : b : c : d) when b was not a square.                            *
+ *   (Was computing b^7*f(c/b) instead of b^6*f(c/b).)                   *
+ *                                                                       *
+ *************************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,7 +25,7 @@
 #define DEFAULT_SIZE 10     /* Default value for the -s option */
 
 #define J_POINTS_VERSION \
-  "This is j-points-1.0 by Michael Stoll (2001-05-02).\n\n" \
+  "This is j-points-1.1 by Michael Stoll (2006-08-10).\n\n" \
   "Please acknowledge use of the program in published work.\n"
 
 
@@ -611,7 +621,7 @@ int find_double_points(void)
           /* Check if we really have got a point */
           if(check_one_point(a*a, 2*a*b, b*b) && one_point) return(1);
         }
-nextb1:
+nextb1: ;
       }
     }
   }
@@ -641,9 +651,9 @@ nextb1:
           /* Check if we really have got a point */
           if(check_one_point(a*a, 2*a*b, b*b) && one_point) return(1);
         }
-nextb2:
+nextb2: ;
       }
-nexta2:
+nexta2: ;
     }
   return(0);
 }
@@ -877,7 +887,7 @@ int check_lifts(long a, long b, long c, long d)
         }
         mpz_add(&fff, &fff, &bc[k]);
       }
-      mpz_mul_ui(&fff, &fff, (unsigned long)b);
+      /* mpz_mul_ui(&fff, &fff, (unsigned long)b); removed for version 1.1 */
       return(mpz_cmp_si(&fff, 0) == 0 || mpz_perfect_square_p(&fff));
     }
   else /* a /= 0 */
