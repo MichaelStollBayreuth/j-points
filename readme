@@ -1,173 +1,171 @@
-    j-points-1.1.c                                                      
-                                                                        
-    A fast program for finding rational points on the Jacobian of a     
-    curve of the form                                                   
-      y^2 = f(x)                                                        
-    with f of degree 5 or 6 with integral coefficients.                 
-                                                                        
-    Call it as follows:                                                 
-      j-points 'a_0 a_1 ... a_d' h                                      
-                [-n num_primes1] [-N num_primes2]                       
-                [-r ratio1] [-R ratio2] [-1]                            
-                [-s size] [-f format] [-q] [-a]                         
-                                                                        
-    where                                                               
-                                                                        
-    + f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6.               
-    + `h' is the bound on the naive height.                             
-    + `num_primes1' gives the number of primes used for the first       
-      sieving stage. (Default is to find this automatically using the   
-      default of `ratio1' below).                                       
-    + `num_primes2' gives the number of primes used for the two sieving 
-      stages together. (Default is to find this automatically using the 
-      default of `ratio2' below).                                       
-    + `ratio1' is the ratio of running time of the second versus the    
-      first stage of sieving (per bit). This is used to find the        
-      optimal number of sieving primes for the first stage auto-        
-      matically. This option is ignored when the `-n' option is given.  
-    + `ratio2' is the ratio of running time needed for checking if      
-      x-coordinates give rise to points versus one step of the second   
-      sieving stage. This is used to find the optimal number of sieving 
-      primes for the second stage automatically. This option is ignored 
-      when the `-N' option is given.                                    
-    + Use `-1' if you only want one point. The program will stop as     
-      soon as it has found one.                                         
-    + `size' is the size (in kilobytes) used for the array of bits in   
-      which the sieving is done. This affects the amount of memory used 
-      by the program. A smaller value might give better performance     
-      if the array can be held in the cache in its entirety.            
-      So it is to be expected that the effect of this parameter depends 
-      heavily on the cache size and speed.                              
-      Default is DEFAULT_SIZE = 10.                                     
+    j-points-1.2.c
+
+    A fast program for finding rational points on the Jacobian of a
+    curve of the form
+      y^2 = f(x)
+    with f of degree 5 or 6 with integral coefficients.
+
+    Call it as follows:
+      j-points 'a_0 a_1 ... a_d' h
+                [-n num_primes1] [-N num_primes2]
+                [-r ratio1] [-R ratio2] [-1]
+                [-s size] [-f format] [-q] [-a]
+
+    where
+
+    + f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6.
+    + `h' is the bound on the naive height.
+    + `num_primes1' gives the number of primes used for the first
+      sieving stage. (Default is to find this automatically using the
+      default of `ratio1' below).
+    + `num_primes2' gives the number of primes used for the two sieving
+      stages together. (Default is to find this automatically using the
+      default of `ratio2' below).
+    + `ratio1' is the ratio of running time of the second versus the
+      first stage of sieving (per bit). This is used to find the
+      optimal number of sieving primes for the first stage auto-
+      matically. This option is ignored when the `-n' option is given.
+    + `ratio2' is the ratio of running time needed for checking if
+      x-coordinates give rise to points versus one step of the second
+      sieving stage. This is used to find the optimal number of sieving
+      primes for the second stage automatically. This option is ignored
+      when the `-N' option is given.
+    + Use `-1' if you only want one point. The program will stop as
+      soon as it has found one.
+    + `size' is the size (in kilobytes) used for the array of bits in
+      which the sieving is done. This affects the amount of memory used
+      by the program. A smaller value might give better performance
+      if the array can be held in the cache in its entirety.
+      So it is to be expected that the effect of this parameter depends
+      heavily on the cache size and speed.
+      Default is DEFAULT_SIZE = 10.
     + `format' is a format string to be given to printf to print points.
-      It should use four long integers (the coordinates on the Kummer   
-      surface). Default is "(%ld, %ld, %ld, %ld)\n".                    
-    + Use `-q' to suppress messages other than printing the points      
-      found.                                                            
-    + Use `-a' to get all points such that the naive height of the      
-      projection to P^2 (first three coords) is at most h. (The fourth  
-      coordinate must be less than 2^((LONG_LENGTH-1)/2), though, in    
-      order to avoid overflow problems.)                                
-                                                                        
-    The ordering of optional arguments is arbitrary.                    
-                                                                        
+      It should use four long integers (the coordinates on the Kummer
+      surface). Default is "(%ld, %ld, %ld, %ld)\n".
+    + Use `-q' to suppress messages other than printing the points
+      found.
+    + Use `-a' to get all points such that the naive height of the
+      projection to P^2 (first three coords) is at most h. (This is
+      now [new in version 1.2] without _any_ height bound on the point.)
+
+    The ordering of optional arguments is arbitrary.
+
 ************************************************************************
-                                                                        
-    Michael Stoll, 25-Oct-1998                                          
-      + Started writing version 0.1, taking ratpoints-1.2 as a starting 
-        point.                                                          
-    Michael Stoll, 12-Nov-1998                                          
-      + Included some enhancements taken from ratpoints-1.4.            
-      + Avoid dealing with multiples of reduced triples.                
-      + This allows taking only squares for the first coordinate, when  
-        f is monic of degree 5.                                         
-    Michael Stoll, 24-Nov-1998                                          
-      + Eliminated a bug (program didn´t take into account possibility  
-        that Kummer equation gives a constant).                         
-    Michael Stoll, 23-Apr-2001: Version 0.6                             
-      + Changed !a&1 into !(a&1) [no real bug, but prevented            
-        optimisation to be used].                                       
-    Michael Stoll, 02-May-2001: Version 1.0                             
-      + Split code into two files: j-points.c and j-sift.c              
-      + Hand-optimised assembler code for j-sift for i386 architecture  
-      + Makefile                                                        
+
+    Michael Stoll, 25-Oct-1998
+      + Started writing version 0.1, taking ratpoints-1.2 as a starting
+        point.
+    Michael Stoll, 12-Nov-1998
+      + Included some enhancements taken from ratpoints-1.4.
+      + Avoid dealing with multiples of reduced triples.
+      + This allows taking only squares for the first coordinate, when
+        f is monic of degree 5.
+    Michael Stoll, 24-Nov-1998
+      + Eliminated a bug (program didn´t take into account possibility
+        that Kummer equation gives a constant).
+    Michael Stoll, 23-Apr-2001: Version 0.6
+      + Changed !a&1 into !(a&1) [no real bug, but prevented
+        optimisation to be used].
+    Michael Stoll, 02-May-2001: Version 1.0
+      + Split code into two files: j-points.c and j-sift.c
+      + Hand-optimised assembler code for j-sift for i386 architecture
+      + Makefile
       + A few minor bugfixes
     Michael Stoll, 08-Aug-2006: Version 1.1
-      + Removed a call 'mpz_mul_ui(&fff, &fff, (unsigned long)b)'     
-        in check_lifts that let the program miss points of the form   
-        (0 : b : c : d) when b was not a square.                      
-        (Was computing b^7*f(c/b) instead of b^6*f(c/b).)             
-                                                                        
-    email: m.stoll@jacobs-university.de                                
+      + Removed a call 'mpz_mul_ui(&fff, &fff, (unsigned long)b)'
+        in check_lifts that let the program miss points of the form
+        (0 : b : c : d) when b was not a square.
+        (Was computing b^7*f(c/b) instead of b^6*f(c/b).)
+    Michael Stoll, 14-Apr-2016: Version 1.2
+      + Added code to handle the case when '-a' is specified and the
+        coordinates of the resulting point(s) exceed machine size.
+
+    email: Michael.Stoll@uni-bayreuth.de
 ************************************************************************
 
 ------------------------------------------------------------------------
  You need the GNU gmp library to compile this program.
- 
+
  INSTALL
  =======
- 
+
  You need the following files
  + readme (this file)
  + j-points.h
- + j-points-1.1.c
- + j-sift-1.0.c or j-sift-1.0-i386.s
+ + j-points-1.2.c
+ + j-sift-1.0.c
  + Makefile
- 
- If your machine runs Linux on an Intel 386 (or compatible) architecture
- and you are using gcc, then do
-   make j-points-fast
- in order to obtain a faster version of the program making use of some
- hand-optimised assembler code. Then rename
-   mv j-points-fast j-points
- Otherwise, do
+
+To obtain the executable, do
    make j-points
 ------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
- The program works as follows. Basically it implements a loop over all  
- triples of first Kummer coordinates (a,b,c) with |a|, |b|, |c| <= h    
- (where h is the height bound given). For each of these triples all     
- possible fourth coordinates d are found such that                      
- + d is integral and gcd(a,b,c,d) = 1;                                  
- + The point (a : b : c : d) in K(Q) lifts to J(Q).                     
-                                                                        
- This test is split into two stages. First it is checked whether        
- (a,b,c) mod p are the first three coordinates of a point on K(F_p)     
- that lifts to J(F_p). This is done for a number of primes p.           
- Only the `surviving' triples are then used to compute the possible d´s 
- and to check if the points thus obtained lift to J(Q).                 
-                                                                        
- There are a number of improvements to this basic scheme.               
-                                                                        
- (1a) We use bits to represent the individual numerators. In this way,  
-     we can sieve as many numerators as bits fit into a long word       
-     (usually 32) at the same time, using bit-wise and operations.      
-                                                                        
+ The program works as follows. Basically it implements a loop over all
+ triples of first Kummer coordinates (a,b,c) with |a|, |b|, |c| <= h
+ (where h is the height bound given). For each of these triples all
+ possible rational fourth coordinates d are found such that
+ + (a : b : c : d) is on the Kummer surface K, and
+ + the point (a : b : c : d) in K(Q) lifts to J(Q).
+ The coordinates are scaled by the denominator of d, so that they
+ are coprime integers.
+
+ This test is split into two stages. First it is checked whether
+ (a,b,c) mod p are the first three coordinates of a point in K(F_p)
+ that lifts to J(F_p). This is done for a number of primes p.
+ Only the `surviving' triples are then used to compute the possible d's
+ and to check if the points thus obtained lift to J(Q).
+
+ There are a number of improvements to this basic scheme.
+
+ (1a) We use bits to represent the individual numerators. In this way,
+     we can sieve as many numerators as bits fit into a long word
+     (usually 64) at the same time, using bit-wise 'and' operations.
+
  (1b) When this kind of sieving has reduced the candidates considerably,
-     we continue the sieving with more primes for each candidate        
-     separately.                                                        
-                                                                        
- (2) We take more primes than necessary for the sieving procedure       
-     and determine in a first step which are the `best' ones. This is   
-     measured by the ratio of numbers surviving the corresponding step  
-     of the sieve (essentially the number of points mod p, divided by   
-     p^2).                                                              
-                                                                        
-                                                                        
- Michael Stoll, November 1998 (and later).
+     we continue the sieving with more primes for each candidate
+     separately.
+
+ (2) We take more primes than necessary for the sieving procedure
+     and determine in a first step which are the `best' ones. This is
+     measured by the ratio of numbers surviving the corresponding step
+     of the sieve (essentially the number of points mod p, divided by
+     p^2).
+
+
+ Michael Stoll, November 1998 - April 2016.
 ------------------------------------------------------------------------
 
-Examples (timings (user time) on an Intel(R) Pentium(R) 4 Mobile CPU 
- 1.60GHz under Linux)
+Examples (timings (user time) on an Intel(R) Core(TM) i7-6600U CPU @ 2.60GHz
+under Linux)
 
- j-points '1 6 5 22 22 8 1' 200 -N 11
-  time 0.25 s, 11 points, 5+6 primes (without -N 11: 0.28 s)
+ j-points '1 6 5 22 22 8 1' 200
+  time 0.08 s, 11 points, 5+9 primes
 
- j-points '1 6 5 22 22 8 1' 500 -N 12
-  time 1.55 s, 12 points, 5+7 primes (without -N 12: 1.59 s)
+ j-points '1 6 5 22 22 8 1' 500
+  time 0.35 s, 12 points, 5+9 primes
 
- j-points '1 6 5 22 22 8 1' 1000 -N 13
-  time 8.85 s, 15 points, 5+8 primes (without -N 13: 9.00 s)
+ j-points '1 6 5 22 22 8 1' 1000
+  time 1.8 s, 15 points, 5+9 primes
 
  j-points '1 178 817 -274 16 1' 200
-  time 0.09 s, 35 points, 6+4 primes
+  time 0.05 s, 35 points, 6+4 primes
 
  j-points '1 178 817 -274 16 1' 500
-  time 0.16 s, 63 points, 6+4 primes
+  time 0.06 s, 63 points, 6+4 primes
 
  j-points '1 178 817 -274 16 1' 1000
-  time 0.54 s, 101 points, 6+4 primes
+  time 0.1 s, 101 points, 6+4 primes
 
  j-points '1 178 817 -274 16 1' 2000
-  time 2.32 s, 124 points, 6+4 primes
+  time 0.36 s, 124 points, 6+4 primes
 
  j-points '21 116 171 128 55 12 1' 200
-  time 0.27 s, 15 points, 5+6 primes
+  time 0.07 s, 15 points, 5+6 primes
 
  j-points '21 116 171 128 55 12 1' 500
-  time 1.90 s, 19 points, 5+6 primes
+  time 0.4 s, 19 points, 5+6 primes
 
  j-points '21 116 171 128 55 12 1' 1000
-  time 11.95 s, 23 points, 5+6 primes 
+  time 2.2 s, 23 points, 5+6 primes
 
