@@ -45,16 +45,19 @@ long prime[NUM_PRIMES+1] =
 {3,5,7,11,13};
 #else
 long prime[NUM_PRIMES+1] =
-{3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61};
+// {3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61};
+{3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127};
 #endif
 long pnn[NUM_PRIMES+1];  /* This array holds the numbers (= index in prime[])
                             of the sieving primes */
 
-double ratio1_def = 100;
-double ratio2_def = 2;
+double ratio1_def = 5000;
+double ratio2_def = 2.5;
 
 double ratio1 = 0.0;  /* This will be set if the -r option is given */
 double ratio2 = 0.0;  /* This will be set if the -R option is given */
+
+long num_primes = 20; /* This will be changed if the -p option is given */
 
 bit_array bits[LONG_LENGTH]; /* An array of bit masks */
 
@@ -62,14 +65,14 @@ typedef struct {long p; double r; long n;} entry;
 
 long inverses[NUM_PRIMES][MAX_PRIME_EVEN];
 /* inverses[pn][a] = b such that a*b = 1 mod p = prime[pn]; 0 < a, b < p. */
-char squares[NUM_PRIMES][MAX_PRIME];
+int squares[NUM_PRIMES][MAX_PRIME];
 /* squares[pn][x] = 1 if x is a square mod prime[pn], 0 if not */
-char has_infinity[NUM_PRIMES];
+int has_infinity[NUM_PRIMES];
 /* has_infinity[pn] = 1 if the curve has rational points at infinity,
    0 if not */
-char is_f_square[NUM_PRIMES][MAX_PRIME_EVEN];
+int is_f_square[NUM_PRIMES][MAX_PRIME_EVEN];
 /* is_f_square[pn][x] = 1 if f(x) is a square mod prime[pn], 0 if not */
-char is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
+int is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
 /* is_point_on_j[pn][x][y] = 1 if there are points on J mod prime[pn]
    with first three coordinates on the Kummer surface (1,x,y), 0 if not */
 
@@ -130,7 +133,7 @@ void init_squares(void);
 void init_fmodpsquare(void);
 void init_sieve(void);
 void kummer_init(void);
-inline long gcd(long, long);
+static inline int relprime(long, long);
 int check_one_point_final(long, long, long, MP_INT *, MP_INT *);
 int check_one_point(long, long, long);
 void print_poly(MP_INT*, long);
@@ -213,7 +216,7 @@ void read_input(long argc, char *argv[])
           else
           { if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
               sieve_primes1 = sieve_primes2;
-            else { if(sieve_primes1 > NUM_PRIMES) sieve_primes1 = NUM_PRIMES; }
+            else { if(sieve_primes1 > num_primes) sieve_primes1 = num_primes; }
           }
           i++;
           break;
@@ -225,7 +228,7 @@ void read_input(long argc, char *argv[])
           else
           { if(sieve_primes1 >= 0 && sieve_primes1 > sieve_primes2)
               sieve_primes2 = sieve_primes1;
-            else { if(sieve_primes2 > NUM_PRIMES) sieve_primes2 = NUM_PRIMES; }
+            else { if(sieve_primes2 > num_primes) sieve_primes2 = num_primes; }
           }
           i++;
           break;
@@ -269,6 +272,14 @@ void read_input(long argc, char *argv[])
           break;
         case '1': /* only one point */
           one_point = 1;
+          i++;
+          break;
+        case 'p': /* set number of primes used */
+          if(argc == i) error(6);
+          i++;
+          if(sscanf(argv[i], " %ld", &num_primes) != 1) error(6);
+          if(num_primes <= 0) error(6);
+          if(num_primes > NUM_PRIMES) { num_primes = NUM_PRIMES; }
           i++;
           break;
         default: error(6);
@@ -374,7 +385,7 @@ void init_fmodpsquare(void)
 {
   long a, b, c, pn, p, n, s, np, s1, s2, t;
 
-  for(pn = 0; pn < NUM_PRIMES; pn++)
+  for(pn = 0; pn < num_primes; pn++)
   {
     p = prime[pn];
     np = 1;
@@ -435,12 +446,12 @@ void init_fmodpsquare(void)
     prec[pn].r = (double)np/(double)(p*p*p);
   }
   /* sort the array to get at the best primes */
-  qsort(prec, NUM_PRIMES, sizeof(entry), compare_entries);
+  qsort(prec, num_primes, sizeof(entry), compare_entries);
   /* Determine the number of sieving primes:
      First stage: take smallest n such that prod(j<=n) prob(j) * ratio1 < 1.
      Second stage: take smallest N such that (1-prob(N+1)) * ratio2 < 1. */
   if(sieve_primes1 < 0)
-  { long n = 0, m = (sieve_primes2 >= 0) ? sieve_primes2-1 : NUM_PRIMES-1;
+  { long n = 0, m = (sieve_primes2 >= 0) ? sieve_primes2-1 : num_primes-1;
     double prod;
     if(ratio1 == 0.0) ratio1 = ratio1_def;
     prod = ratio1;
@@ -453,7 +464,7 @@ void init_fmodpsquare(void)
   if(sieve_primes2 < 0)
   { long n;
     if(ratio2 == 0.0) ratio2 = ratio2_def;
-    for(n = sieve_primes1; n < NUM_PRIMES; n++)
+    for(n = sieve_primes1; n < num_primes; n++)
       if(ratio2*(1.0 - prec[n].r) < 1.0) break;
     sieve_primes2 = n;
   }
@@ -589,7 +600,7 @@ int find_double_points(void)
      than ~ 100 */
   long wheight = floor(sqrt(height));
   long a, b, n;
-  struct stype {long p; long ap; char *ptr;} ssp0[NUM_PRIMES];
+  struct stype {long p; long ap; int *ptr;} ssp0[NUM_PRIMES];
   struct stype *ssp;
   for(n = 0; n < sieve_primes2; n++)
     ssp0[n].p = prime[pnn[n]];
@@ -611,7 +622,7 @@ int find_double_points(void)
       bmax = height/(2*a);
       if(wheight < bmax) bmax = wheight;
       for(b = -bmax; b <= bmax; b++)
-      { if(gcd(a, b) == 1)
+      { if(relprime(a, b)) /* a is positive */
         { for(ssp = &ssp0[0], n = sieve_primes2; n; n--, ssp++)
           { long p = ssp->p, bp = b%p;
             if(bp < 0) bp += p;
@@ -641,7 +652,7 @@ nextb1: ;
       bmax = height/(2*a);
       if(wheight < bmax) bmax = wheight;
       for(b = -bmax; b <= bmax; b++)
-      { if(gcd(a, b) == 1)
+      { if(relprime(a, b)) /* a is positive */
         { for(ssp = &ssp0[0], n = sieve_primes2; n; n--, ssp++)
           { long p = ssp->p, bp = b%p;
             if(bp < 0) bp += p;
@@ -704,7 +715,8 @@ void find_points(void)
 }
 
 /**************************************************************************
- * some Kummer surface formula stuff                                      *
+ * Compute coefficients of the Kummer surface equation.                   *
+ * k<i1><i2><i3> is the coefficient of x1^i1*x2^i2*x3^i3.                 *
  **************************************************************************/
 
 void kummer_init()
@@ -712,14 +724,11 @@ void kummer_init()
   mpz_mul(&k400, &coeffs[1], &coeffs[1]); mpz_mul(&tmp, &coeffs[0], &coeffs[2]);
   mpz_mul_ui(&tmp, &tmp, 4); mpz_sub(&k400, &k400, &tmp);
   /* - 4*x1^3*x2*f0*f3 */
-  mpz_mul(&k310, &coeffs[0], &coeffs[3]); mpz_mul_ui(&k310, &k310, 4);
-  mpz_neg(&k310, &k310);
+  mpz_mul(&k310, &coeffs[0], &coeffs[3]); mpz_mul_si(&k310, &k310, -4);
   /* - 2*x1^3*x3*f1*f3 */
-  mpz_mul(&k301, &coeffs[1], &coeffs[3]); mpz_mul_ui(&k301, &k301, 2);
-  mpz_neg(&k301, &k301);
+  mpz_mul(&k301, &coeffs[1], &coeffs[3]); mpz_mul_si(&k301, &k301, -2);
   /* - 4*x1^2*x2^2*f0*f4 */
-  mpz_mul(&k220, &coeffs[0], &coeffs[4]); mpz_mul_ui(&k220, &k220, 4);
-  mpz_neg(&k220, &k220);
+  mpz_mul(&k220, &coeffs[0], &coeffs[4]); mpz_mul_si(&k220, &k220, -4);
   /* + 4*x1^2*x2*x3*f0*f5 - 4*x1^2*x2*x3*f1*f4 */
   mpz_mul(&k211, &coeffs[0], &coeffs[5]); mpz_mul(&tmp, &coeffs[1], &coeffs[4]);
   mpz_sub(&k211, &k211, &tmp); mpz_mul_ui(&k211, &k211, 4);
@@ -731,8 +740,7 @@ void kummer_init()
   mpz_add(&k202, &k202, &tmp); mpz_mul(&tmp, &coeffs[0], &coeffs[6]);
   mpz_mul_ui(&tmp, &tmp, 4); mpz_sub(&k202, &k202, &tmp);
   /* - 4*x1*x2^3*f0*f5 */
-  mpz_mul(&k130, &coeffs[0], &coeffs[5]); mpz_mul_ui(&k130, &k130, 4);
-  mpz_neg(&k130, &k130);
+  mpz_mul(&k130, &coeffs[0], &coeffs[5]); mpz_mul_si(&k130, &k130, -4);
   /* + 8*x1*x2^2*x3*f0*f6 - 4*x1*x2^2*x3*f1*f5 */
   mpz_mul(&k121, &coeffs[0], &coeffs[6]); mpz_mul_ui(&k121, &k121, 8);
   mpz_mul(&tmp, &coeffs[1], &coeffs[5]); mpz_mul_ui(&tmp, &tmp, 4);
@@ -741,111 +749,108 @@ void kummer_init()
   mpz_mul(&k112, &coeffs[1], &coeffs[6]); mpz_mul(&tmp, &coeffs[2], &coeffs[5]);
   mpz_sub(&k112, &k112, &tmp); mpz_mul_ui(&k112, &k112, 4);
   /* - 2*x1*x3^3*f3*f5 */
-  mpz_mul(&k103, &coeffs[3], &coeffs[5]); mpz_mul_ui(&k103, &k103, 2);
-  mpz_neg(&k103, &k103);
+  mpz_mul(&k103, &coeffs[3], &coeffs[5]); mpz_mul_si(&k103, &k103, -2);
   /* - 4*x2^4*f0*f6 */
-  mpz_mul(&k040, &coeffs[0], &coeffs[6]); mpz_mul_ui(&k040, &k040, 4);
-  mpz_neg(&k040, &k040);
+  mpz_mul(&k040, &coeffs[0], &coeffs[6]); mpz_mul_si(&k040, &k040, -4);
   /* - 4*x2^3*x3*f1*f6 */
-  mpz_mul(&k031, &coeffs[1], &coeffs[6]); mpz_mul_ui(&k031, &k031, 4);
-  mpz_neg(&k031, &k031);
+  mpz_mul(&k031, &coeffs[1], &coeffs[6]); mpz_mul_si(&k031, &k031, -4);
   /* - 4*x2^2*x3^2*f2*f6 */
-  mpz_mul(&k022, &coeffs[2], &coeffs[6]); mpz_mul_ui(&k022, &k022, 4);
-  mpz_neg(&k022, &k022);
+  mpz_mul(&k022, &coeffs[2], &coeffs[6]); mpz_mul_si(&k022, &k022, -4);
   /* - 4*x2*x3^3*f3*f6 */
-  mpz_mul(&k013, &coeffs[3], &coeffs[6]); mpz_mul_ui(&k013, &k013, 4);
-  mpz_neg(&k013, &k013);
+  mpz_mul(&k013, &coeffs[3], &coeffs[6]); mpz_mul_si(&k013, &k013, -4);
   /* - 4*x3^4*f4*f6 + x3^4*f5^2 */
   mpz_mul(&k004, &coeffs[5], &coeffs[5]); mpz_mul(&tmp, &coeffs[4], &coeffs[6]);
   mpz_mul_ui(&tmp, &tmp, 4); mpz_sub(&k004, &k004, &tmp);
 }
 
-inline void kummer_eqn(long a, long b, long c)
-{ mpz_set_si(&x12, a*a); mpz_set_si(&x22, b*b); mpz_set_si(&x32, c*c);
-  /* -4*x1^4*f0*f2 + x1^4*f1^2 - 4*x1^3*x2*f0*f3 - 2*x1^3*x3*f1*f3
-     - 4*x1^2*x2^2*f0*f4 + 4*x1^2*x2*x3*f0*f5 - 4*x1^2*x2*x3*f1*f4
-     - 4*x1^2*x3^2*f0*f6 + 2*x1^2*x3^2*f1*f5 - 4*x1^2*x3^2*f2*f4
-     + x1^2*x3^2*f3^2 - 4*x1*x2^3*f0*f5 + 8*x1*x2^2*x3*f0*f6
-     - 4*x1*x2^2*x3*f1*f5 + 4*x1*x2*x3^2*f1*f6 - 4*x1*x2*x3^2*f2*f5
-     - 2*x1*x3^3*f3*f5 - 4*x2^4*f0*f6 - 4*x2^3*x3*f1*f6 - 4*x2^2*x3^2*f2*f6
-     - 4*x2*x3^3*f3*f6 - 4*x3^4*f4*f6 + x3^4*f5^2 */
-  mpz_mul(&tmp, &k400, &x12); mpz_mul(&kummer[0], &tmp, &x12);
+/* Compute the coefficients of the quadratic equation for the fourth
+ * Kummer coordinate, given the first three coordinates a, b, c.
+ * We require that max{|a|^2, |b|^2, |c|^2} < 2^(LONG_LENGTH-1),
+ * so that products of two coordinates fit into a (signed) long. */
+static inline void kummer_eqn(long a, long b, long c)
+{ long aa = a*a, bb = b*b, cc = c*c, ab = a*b, ac = a*c, bc = b*c;
+  /* Constant term in kummer[0]: */
+  /* k400*a^4 + k310*a^3*b + k301*a^3*c + k220*a^2*b^2 + k211*a^2*b*c + k202*a^2*c^2
+   *  + k130*a*b^3 + k121*a*b^2*c + k112*a*b*c^2 + k103*a*c^3
+   *  + k040*b^4 + k031*b^3*c + k022*b^2*c^2 + k013*b*c^3 + k004*c^4
+   * = (k400*a^2 + k310*a*b + k301*a*c + k220*b^2 + k211*b*c + k202*c^2)*a^2
+   *    + (k130*a*b + k121*a*c + k040*b^2 + k031*b*c + k022*c^2)*b^2
+   *    + (k112*a*b + k103*a*c + k013*b*c + k004*c^2)*c^2 */
+  mpz_mul_si(&kummer[0], &k400, aa);
+  mpz_mul_si(&tmp, &k310, ab); mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&tmp, &k301, ac); mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&tmp, &k220, bb); mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&tmp, &k211, bc); mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&tmp, &k202, cc); mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&kummer[0], &kummer[0], aa);
 
-  mpz_mul(&tmp, &k310, &x12); mpz_mul_si(&tmp, &tmp, a*b);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&kummer[1], &k130, ab);
+  mpz_mul_si(&tmp, &k121, ac); mpz_add(&kummer[1], &kummer[1], &tmp);
+  mpz_mul_si(&tmp, &k040, bb); mpz_add(&kummer[1], &kummer[1], &tmp);
+  mpz_mul_si(&tmp, &k031, bc); mpz_add(&kummer[1], &kummer[1], &tmp);
+  mpz_mul_si(&tmp, &k022, cc); mpz_add(&kummer[1], &kummer[1], &tmp);
+  mpz_mul_si(&kummer[1], &kummer[1], bb);
 
-  mpz_mul(&tmp, &k301, &x12); mpz_mul_si(&tmp, &tmp, a*c);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&kummer[2], &k112, ab);
+  mpz_mul_si(&tmp, &k103, ac); mpz_add(&kummer[2], &kummer[2], &tmp);
+  mpz_mul_si(&tmp, &k013, bc); mpz_add(&kummer[2], &kummer[2], &tmp);
+  mpz_mul_si(&tmp, &k004, cc); mpz_add(&kummer[2], &kummer[2], &tmp);
+  mpz_mul_si(&kummer[2], &kummer[2], cc);
 
-  mpz_mul(&tmp, &k220, &x12); mpz_mul(&tmp, &tmp, &x22);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_add(&kummer[0], &kummer[0], &kummer[1]);
+  mpz_add(&kummer[0], &kummer[0], &kummer[2]);
 
-  mpz_mul(&tmp, &k211, &x12); mpz_mul_si(&tmp, &tmp, b*c);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
+  /* Coefficient of linear term: */
+  /* -4*a^3*f0 - 2*a^2*b*f1 - 4*a^2*c*f2 - 2*a*b*c*f3 - 4*a*c^2*f4 - 2*b*c^2*f5 - 4*c^3*f6
+   *  = (f0*a^2 + f2*a*c)*(-4*a) + (f1*a^2 + f3*a*c + f5*c^2)*(-2*b) + (f4*ac + f6*c^2)*(-4*c) */
+  mpz_mul_si(&kummer[1], &coeffs[0], aa);
+  mpz_mul_si(&tmp, &coeffs[2], ac); mpz_add(&kummer[1], &kummer[1], &tmp);
+  mpz_mul_si(&kummer[1], &kummer[1], -4*a);
 
-  mpz_mul(&tmp, &k202, &x12); mpz_mul(&tmp, &tmp, &x32);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&kummer[2], &coeffs[1], aa);
+  mpz_mul_si(&tmp, &coeffs[3], ac); mpz_add(&kummer[2], &kummer[2], &tmp);
+  mpz_mul_si(&tmp, &coeffs[5], cc); mpz_add(&kummer[2], &kummer[2], &tmp);
+  mpz_mul_si(&kummer[2], &kummer[2], -2*b);
+  mpz_add(&kummer[1], &kummer[1], &kummer[2]);
 
-  mpz_mul(&tmp, &k130, &x22); mpz_mul_si(&tmp, &tmp, a*b);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
+  mpz_mul_si(&kummer[2], &coeffs[4], ac);
+  mpz_mul_si(&tmp, &coeffs[6], cc); mpz_add(&kummer[2], &kummer[2], &tmp);
+  mpz_mul_si(&kummer[2], &kummer[2], -4*c);
+  mpz_add(&kummer[1], &kummer[1], &kummer[2]);
 
-  mpz_mul(&tmp, &k121, &x22); mpz_mul_si(&tmp, &tmp, a*c);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k112, &x32); mpz_mul_si(&tmp, &tmp, a*b);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k103, &x32); mpz_mul_si(&tmp, &tmp, a*c);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k040, &x22); mpz_mul(&tmp, &tmp, &x22);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k031, &x22); mpz_mul_si(&tmp, &tmp, b*c);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k022, &x22); mpz_mul(&tmp, &tmp, &x32);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k013, &x32); mpz_mul_si(&tmp, &tmp, b*c);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-
-  mpz_mul(&tmp, &k004, &x32); mpz_mul(&tmp, &tmp, &x32);
-  mpz_add(&kummer[0], &kummer[0], &tmp);
-  /* -4*x1^3*f0 - 2*x1^2*x2*f1 - 4*x1^2*x3*f2 - 2*x1*x2*x3*f3
-     - 4*x1*x3^2*f4 - 2*x2*x3^2*f5 - 4*x3^3*f6 */
-  mpz_mul_si(&tmp, &coeffs[0], a); mpz_mul(&kummer[1], &tmp, &x12);
-  mpz_mul(&tmp, &coeffs[2], &x12); mpz_mul_si(&tmp, &tmp, c);
-  mpz_add(&kummer[1], &kummer[1], &tmp); mpz_mul_si(&tmp, &coeffs[4], a);
-  mpz_mul(&tmp, &tmp, &x32); mpz_add(&kummer[1], &kummer[1], &tmp);
-  mpz_mul_si(&tmp, &coeffs[6], c); mpz_mul(&tmp, &tmp, &x32);
-  mpz_add(&kummer[1], &kummer[1], &tmp); mpz_mul_ui(&kummer[1], &kummer[1], 2);
-  mpz_mul(&tmp, &coeffs[1], &x12); mpz_mul_si(&tmp, &tmp, b);
-  mpz_add(&kummer[1], &kummer[1], &tmp); mpz_mul_si(&tmp, &coeffs[3], a);
-  mpz_mul_si(&tmp, &tmp, b*c);
-  mpz_add(&kummer[1], &kummer[1], &tmp); mpz_mul_si(&tmp, &coeffs[5], b);
-  mpz_mul(&tmp, &tmp, &x32); mpz_add(&kummer[1], &kummer[1], &tmp);
-  mpz_mul_ui(&kummer[1], &kummer[1], 2); mpz_neg(&kummer[1], &kummer[1]);
-  /* x2^2-4*x1*x3 */
-  mpz_set_si(&tmp, a*c); mpz_mul_ui(&tmp, &tmp, 4);
-  mpz_sub(&kummer[2], &x22, &tmp);
+  /* Leading coefficient: */
+  /* b^2-4*a*c */
+  mpz_set_si(&tmp, ac); mpz_mul_ui(&tmp, &tmp, 4);
+  mpz_set_si(&kummer[2], bb);
+  mpz_sub(&kummer[2], &kummer[2], &tmp);
 }
 
 /**************************************************************************
- * compute the gcd of two integers                                        *
+ * Check if two integers are coprime.                                     *
  **************************************************************************/
 
-inline long gcd(long m, long n)
+static inline int relprime(long n, long m)
 {
-  if(m < 0) m = -m;
-  if(n < 0) n = -n;
-  while(1)
-  { if(n == 0) return(m);
-    m %= n;
-    if(m == 0) return(n);
-    n %= m;
+  /* n is always positive here */
+  if(m == 0) { return(n == 1); }
+  if(m < 0) { m = -m; }
+  if(!(m & 1)) /* m is even */
+  { if(!(n & 1)) { return(0); } /* n is also even */
+    m >>= 1; while(!(m & 1)) { m >>= 1; } /* n odd: replace m by odd part */
   }
+  while(!(n & 1)) { n >>= 1; } /* replace n by odd part */
+  /* successively subtract the smaller from the larger
+   * and replace the result by its odd part,
+   * until both are equal (to their gcd) */
+  while(n != m)
+  { if(n > m)
+    { n -= m; n >>= 1; while(!(n & 1)) { n >>= 1; } }
+    else
+    { m -= n; m >>= 1; while(!(m & 1)) { m >>= 1; } }
+  }
+  return(m == 1);
 }
+
 
 /**************************************************************************
  * check a `survivor' of the sieve if it really gives a point             *
@@ -1052,7 +1057,7 @@ void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
 int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
 { /* Given a, b, c and d = d1/d2, check if this gives a point satisfying
      the height condition. If so, print and count it. */
-  long m = (a > abs(b)) ? ((a > abs(c)) ? a :abs(c))
+  long m = (a > abs(b)) ? ((a > abs(c)) ? a : abs(c))
                         : ((abs(b) > abs(c)) ? abs(b) : abs(c));
   long h = bound/m;
   mpz_gcd(&cpf3, d1, d2);
@@ -1267,7 +1272,7 @@ void message(long n, long total)
               prec[sieve_primes1-1].p, prec[sieve_primes1-1].r);
       printf("Cut2(%ld) = %f, Max(%ld) = %f\n\n",
               prec[sieve_primes2-1].p, prec[sieve_primes2-1].r,
-              prec[NUM_PRIMES-1].p, prec[NUM_PRIMES-1].r);  break;
+              prec[num_primes-1].p, prec[num_primes-1].r);  break;
     case 9: printf("Using speed ratios %f and %f\n", ratio1, ratio2); break;
     case 12: printf("\n%ld candidates survived the first stage,\n", num_surv1);
              printf("%ld candidates survived the second stage.\n", num_surv2);

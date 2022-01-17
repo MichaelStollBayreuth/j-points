@@ -10,9 +10,12 @@
 # define MAX_PRIME 13
 # define MAX_PRIME_EVEN 16
 #else
-# define NUM_PRIMES 17
-# define MAX_PRIME 61
-# define MAX_PRIME_EVEN 64
+// # define NUM_PRIMES 17
+// # define MAX_PRIME 61
+// # define MAX_PRIME_EVEN 64
+# define NUM_PRIMES 30
+# define MAX_PRIME 127
+# define MAX_PRIME_EVEN 128
 #endif /* DEBUG > 0 */
 
 #define FLOOR(a,b) (((a) < 0) ? -(1 + (-(a)-1) / (b)) : (a) / (b))
@@ -42,7 +45,7 @@ extern long sieve_primes1;
    /* The number of primes used for the first sieving stage */
 extern long sieve_primes2;
    /* The number of primes used for both sieving stages */
-extern bit_array 
+extern bit_array
        sieve[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
 
 extern long num_surv1;   /* Used to count the survivors of the first stage */
