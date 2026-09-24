@@ -1,6 +1,8 @@
-# Curves and height bounds for test2.sh and mkref2.m: coefficients a_0 ... a_d
-# of y^2 = f(x), a height bound, and a comment, separated by semicolons.
-# The reference testbase2 was made from this file by mkref2.m (Magma).
+# Curves and height bounds for test2.sh, test4.sh, testbrute.sh and mkref4.m:
+# coefficients a_0 ... a_d of y^2 = f(x), a height bound, and a comment,
+# separated by semicolons.
+# testbase2 is the output of test2.sh on this file, verified by verify-test2.sh;
+# testbase4 the brute-force reference of mkref4.m (Magma) at height 30.
 #
 # random curves of degree 6 with coefficients in [-10, 10], at height bounds
 # of every residue mod 64 that matters for the bit arrays
