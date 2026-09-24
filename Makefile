@@ -34,7 +34,7 @@ LFLAGS = -lgmp -lgcc -lc -lm
 VERSION = 2.0
 
 # Files that make up the distribution
-DISTFILES = Makefile j-points.h j-points.c j-sift.c readme README.md gpl-2.0.txt testbase
+DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md gpl-2.0.txt testbase
 
 # Temporary files that are generated during build
 # and can be removed afterwards
