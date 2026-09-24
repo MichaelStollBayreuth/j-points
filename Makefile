@@ -20,6 +20,8 @@
 #   Makefile
 
 CC = gcc
+# the test target times its run with the shell's time, which /bin/sh lacks
+SHELL = /bin/bash
 RM = rm -f
 INSTALL = cp
 
@@ -32,11 +34,11 @@ LFLAGS = -lgmp -lgcc -lc -lm
 VERSION = 2.0
 
 # Files that make up the distribution
-DISTFILES = Makefile j-points.h j.points-${VERSION}.c j-sift-${VERSION}.c readme testbase
+DISTFILES = Makefile j-points.h j-points.c j-sift.c readme README.md gpl-2.0.txt testbase
 
 # Temporary files that are generated during build
 # and can be removed afterwards
-TEMPFILES = j-points-${VERSION}.o j-sift-${VERSION}.o j-sift-${VERSION}.s test.out
+TEMPFILES = j-points.o j-sift.o j-sift.s test.out
 
 # Executables produced when building
 TARGETFILES = j-points
@@ -63,16 +65,16 @@ clean:
 distclean: clean
 	${RM} ${TARGETFILES}
 
-j-points: j-points-${VERSION}.o j-sift-${VERSION}.o
-	${CC} j-points-${VERSION}.o j-sift-${VERSION}.o -o j-points ${LFLAGS} ${CCFLAGS}
+j-points: j-points.o j-sift.o
+	${CC} j-points.o j-sift.o -o j-points ${LFLAGS} ${CCFLAGS}
 
-j-points-${VERSION}.o: j-points-${VERSION}.c j-points.h
-	${CC} j-points-${VERSION}.c -c -o j-points-${VERSION}.o ${CCFLAGS0} ${CCFLAGS}
+j-points.o: j-points.c j-points.h
+	${CC} j-points.c -c -o j-points.o ${CCFLAGS0} ${CCFLAGS}
 
-j-sift-${VERSION}.o: j-sift-${VERSION}.c j-points.h
-	${CC} j-sift-${VERSION}.c -c -o j-sift-${VERSION}.o ${CCFLAGS0} -funroll-loops ${CCFLAGS}
+j-sift.o: j-sift.c j-points.h
+	${CC} j-sift.c -c -o j-sift.o ${CCFLAGS0} -funroll-loops ${CCFLAGS}
 
-j-sift-${VERSION}.s: j-sift-${VERSION}.c j-points.h
-	${CC} j-sift-${VERSION}.c -S -o j-sift-${VERSION}.s ${CCFLAGS0} -funroll-loops ${CCFLAGS}
+j-sift.s: j-sift.c j-points.h
+	${CC} j-sift.c -S -o j-sift.s ${CCFLAGS0} -funroll-loops ${CCFLAGS}
 
 

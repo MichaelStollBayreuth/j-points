@@ -1,0 +1,14 @@
+# build products
+*.o
+*.s
+/j-points
+# output of the tests
+*.out
+# archives made by "make dist"
+/j-points-*.tar.gz
+# editor backups
+*~
+# local material that is not part of the distribution
+/CLAUDE.md
+/DEVELOPMENT-NOTES.md
+/review-*/
