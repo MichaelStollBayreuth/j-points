@@ -35,13 +35,15 @@ VERSION = 2.1
 
 # Files that make up the distribution
 DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md gpl-2.0.txt \
-            testbase testcurves2 testbase2 testbase3 \
-            test2.sh test3.sh testbrute.sh mkref2.m verify-test3.py
+            testbase testcurves2 testbase2 testbase3 testbase4 \
+            test2.sh test3.sh test4.sh testbrute.sh \
+            verify-test2.sh verify-test3.py mkref4.m
 
 # Temporary files that are generated during build
 # and can be removed afterwards
-TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out testbrute.out \
-            testbrute-sieved.out testbrute-exact.out testbrute-failed.out verify-test3.m
+TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out test4.out \
+            testbrute.out testbrute-sieved.out testbrute-exact.out testbrute-failed.out \
+            verify-test2-failed.out verify-test3.m
 
 # Executables produced when building
 TARGETFILES = j-points
@@ -57,7 +59,7 @@ FAIL = { echo ${FAILED}; false; }
 # differs from its reference prints "Test failed!" and fails its target;
 # "make test" runs every suite whatever the earlier ones did and fails at
 # the end if any of them failed.
-TESTS = test1 test2 test3 testbrute
+TESTS = test1 test2 test3 test4 testbrute
 
 .PHONY: test
 test:
@@ -66,7 +68,7 @@ test:
 	 exit $$status
 
 # One curve with many points at the height bound 2000, timed: the run that
-# measures the sieve.  The 26 points of testbase are those Magma finds.
+# measures the sieve.
 test1: j-points testbase
 	time ./j-points '21 116 171 128 55 12 1' 2000 -q > test.out
 	cmp -s testbase test.out || ${FAIL}
@@ -74,18 +76,28 @@ test1: j-points testbase
 # The 61 curves of testcurves2 (random ones at every height bound that
 # matters for the bit arrays, square and negative leading coefficients,
 # rational roots, bad reduction at the small primes, degree 5 monic and
-# not, large coefficients) against testbase2, which mkref2.m made with
-# Magma's own search for the points.
+# not, large coefficients) against testbase2, the program's output, which
+# verify-test2.sh checks against the unsieved run of every curve (an hour
+# of CPU time; run it again whenever testbase2 changes).
 test2: j-points testbase2 testcurves2 test2.sh
 	./test2.sh > test2.out 2>&1
 	cmp -s testbase2 test2.out || ${FAIL}
 
 # The options, the messages and the errors (see test3.sh), against
-# testbase3.  The point lists of the reference were checked against Magma
-# by verify-test3.py, which can be run again whenever testbase3 changes.
+# testbase3.  The point lists of the reference were checked by
+# verify-test3.py -- by brute force with Magma's Kummer package up to height
+# 60, by the unsieved run above -- which can be run again whenever testbase3
+# changes.
 test3: j-points testbase3 test3.sh
 	./test3.sh > test3.out 2>&1
 	cmp -s testbase3 test3.out || ${FAIL}
+
+# The exact check against Magma: every curve of testcurves2 at height 30,
+# with and without -a (see test4.sh), against testbase4, which mkref4.m made
+# by brute force over every coprime triple with Magma's Kummer package.
+test4: j-points testbase4 testcurves2 test4.sh
+	./test4.sh > test4.out 2>&1
+	cmp -s testbase4 test4.out || ${FAIL}
 
 # The sieve against no sieve, on the curves of testcurves2 at a small
 # height bound (see testbrute.sh); the script itself reports a difference.

@@ -1,10 +1,10 @@
 #!/bin/sh
 # Runs j-points on every curve of testcurves2 at its height bound and prints
-# the points sorted; "make test2" compares the output with testbase2, which
-# mkref2.m made with Magma's own search for the points (an independent
-# implementation of the Kummer surface and of the lifting to the Jacobian).
-# Before each invocation the script prints its arguments, so that a failing
-# curve can be found from the diff of test2.out against testbase2.
+# the points sorted; "make test2" compares the output with testbase2, the
+# program's own output, which verify-test2.sh checks against the unsieved run
+# of every curve (-n 0 -N 0, every coprime triple tested exactly).  Before
+# each invocation the script prints its arguments, so that a failing curve
+# can be found from the diff of test2.out against testbase2.
 #
 # The script takes the program from $JP, ./j-points by default, and adds
 # $JPOPTS to every invocation, so that a build with other flags, or other
