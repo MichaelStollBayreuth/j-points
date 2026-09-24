@@ -2,8 +2,9 @@
 *.o
 *.s
 /j-points
-# output of the tests
+# output of the tests, and the Magma script verify-test3.py writes
 *.out
+/verify-test3.m
 # archives made by "make dist"
 /j-points-*.tar.gz
 # editor backups

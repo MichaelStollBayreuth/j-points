@@ -1,22 +1,30 @@
-/******* j-points.c ******************************************************
- *                                                                       *
- * Change Log:                                                           *
- *                                                                       *
- * + version 1.1, 2006-08-09, Michael Stoll:                             *
- *   Removed a call 'mpz_mul_ui(&fff, &fff, (unsigned long)b)'           *
- *   in check_lifts that let the program miss points of the form         *
- *   (0 : b : c : d) when b was not a square.                            *
- *   (Was computing b^7*f(c/b) instead of b^6*f(c/b).)                   *
- *                                                                       *
- * + version 1.2, 2016-04-14, Michael Stoll:                             *
- *   Added code (check_lifts_mpz) that checks a candidate coordinate     *
- *   quadruple when the coordinates are not machine-size integers.       *
- *   This results in 'j-points ... -a' really returning _all_ points     *
- *   on the Kummer surface that lift to the Jacobian and have naive      *
- *   multiplicative height of their projection to P^2 given by the       *
- *   first three coordinates bounded by the given height bound.          *
- *                                                                       *
- *************************************************************************/
+/***********************************************************************
+ * j-points-2.1                                                        *
+ *  - A program to find rational points on Jacobians of genus 2 curves *
+ * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
+ *                                                                     *
+ * This program is free software: you can redistribute it and/or       *
+ * modify it under the terms of the GNU General Public License         *
+ * as published by the Free Software Foundation, either version 2 of   *
+ * the License, or (at your option) any later version.                 *
+ *                                                                     *
+ * This program is distributed in the hope that it will be useful,     *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of      *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the       *
+ * GNU General Public License for more details.                        *
+ *                                                                     *
+ * You should have received a copy of version 2 of the GNU General     *
+ * Public License along with this program.                             *
+ * If not, see <http://www.gnu.org/licenses/>.                         *
+ ***********************************************************************/
+
+/***********************************************************************
+ * j-points.c                                                          *
+ *  - the driver: reads the curve and the options, sets up the tables  *
+ *    and the Kummer equation, finds the double points and the points  *
+ *    with a = 0, runs the sieve over the other triples (a, b) and     *
+ *    checks its survivors exactly                                     *
+ ***********************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -33,7 +41,7 @@
 #define DEFAULT_SIZE 10     /* Default value for the -s option */
 
 #define J_POINTS_VERSION \
-  "This is j-points-1.2 by Michael Stoll (2016-04-14).\n\n" \
+  "This is j-points-2.1 by Michael Stoll (2026-09-24).\n\n" \
   "Please acknowledge use of the program in published work.\n"
 
 /**************************************************************************
@@ -99,7 +107,6 @@ entry prec[NUM_PRIMES];  /* This array is used for sorting in order to
                             determine the `best' sieving primes. */
 
 long height;          /* The height bound */
-long w_height;        /* The height bound divided by the word length in bits */
 long sieve_primes1;   /* The number of primes used for the first sieving stage */
 long sieve_primes2;   /* The number of primes used for both sieving stages */
 int quiet;            /* A flag saying whether to suppress messages */
@@ -188,12 +195,13 @@ void read_input(long argc, char *argv[])
     while((degree <= 6) && (s = scan_mpz(s, &coeffs[degree]))) degree++;
     degree--;
     if(scan_mpz(s, &fff)) error(3);
+    /* zero leading coefficients do not count */
+    while(degree > 0 && mpz_sgn(&coeffs[degree]) == 0) degree--;
   }
   if(degree < 5) error(5);
   if(degree == 5) mpz_set_si(&coeffs[6], 0);
   if(sscanf(argv[2], " %ld", &height) != 1 || height < 1 || height > MAX_HEIGHT)
   { error(4); }
-  w_height = ((height - 1) / LONG_LENGTH) + 1;
   /* Set global variables to their default values */
   sieve_primes1 = -1;  /* automatic determination of this number */
   sieve_primes2 = -1;  /* automatic determination of this number */
@@ -213,11 +221,8 @@ void read_input(long argc, char *argv[])
           i++;
           if(sscanf(argv[i], " %ld", &sieve_primes1) != 1) error(6);
           if(sieve_primes1 < 0) sieve_primes1 = 0;
-          else
-          { if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
-              sieve_primes1 = sieve_primes2;
-            else { if(sieve_primes1 > num_primes) sieve_primes1 = num_primes; }
-          }
+          if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
+            sieve_primes1 = sieve_primes2;
           i++;
           break;
         case 'N': /* number of primes used for sieving altogether */
@@ -225,11 +230,8 @@ void read_input(long argc, char *argv[])
           i++;
           if(sscanf(argv[i], " %ld", &sieve_primes2) != 1) error(6);
           if(sieve_primes2 < 0) sieve_primes2 = 0;
-          else
-          { if(sieve_primes1 >= 0 && sieve_primes1 > sieve_primes2)
-              sieve_primes2 = sieve_primes1;
-            else { if(sieve_primes2 > num_primes) sieve_primes2 = num_primes; }
-          }
+          if(sieve_primes1 >= 0 && sieve_primes1 > sieve_primes2)
+            sieve_primes2 = sieve_primes1;
           i++;
           break;
         case 'r': /* speed ratio 1 */
@@ -284,6 +286,10 @@ void read_input(long argc, char *argv[])
           break;
         default: error(6);
   } } }
+  /* the numbers of sieving primes cannot exceed the number of primes
+     considered, whatever the order of -n, -N and -p */
+  if(sieve_primes1 > num_primes) sieve_primes1 = num_primes;
+  if(sieve_primes2 > num_primes) sieve_primes2 = num_primes;
 }
 
 /* Read in a long long long integer. Should really be in the library. */
@@ -460,6 +466,9 @@ void init_fmodpsquare(void)
       if(prod < 1.0) break;
     }
     sieve_primes1 = n + 1;
+    /* -N 0 means no sieving at all */
+    if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
+      sieve_primes1 = sieve_primes2;
   }
   if(sieve_primes2 < 0)
   { long n;
@@ -909,10 +918,14 @@ int check_lifts(long a, long b, long c, long d)
     mpz_mul(&tmp2, &x12, &x22); mpz_mul(&tmp2, &tmp2, &coeffs[4]);
     mpz_add(&tmp, &tmp, &tmp2);
 
-    k = b*b - a*c; mpz_mul_si(&tmp2, &coeffs[5], k);
+    /* b^2 - a*c in tmp3: it can exceed a long, unlike the products */
+    mpz_set_si(&tmp3, b); mpz_mul_si(&tmp3, &tmp3, b);
+    mpz_set_si(&tmp2, a); mpz_mul_si(&tmp2, &tmp2, c);
+    mpz_sub(&tmp3, &tmp3, &tmp2);
+    mpz_mul(&tmp2, &coeffs[5], &tmp3);
     mpz_mul_si(&tmp2, &tmp2, a*b); mpz_add(&tmp, &tmp, &tmp2);
 
-    mpz_mul_si(&tmp2, &coeffs[6], k); mpz_mul_si(&tmp2, &tmp2, k);
+    mpz_mul(&tmp2, &coeffs[6], &tmp3); mpz_mul(&tmp2, &tmp2, &tmp3);
     mpz_add(&tmp, &tmp, &tmp2);
 #ifdef VERBOSE
     printf("  A^2 = %s\n", mpz_get_str((char *) 0, 10, &tmp));
@@ -1028,37 +1041,25 @@ int check_lifts_mpz(MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
 }
 
 void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
-{
-  /* use format to print the four coordinates, replacing %ld by them */
-  int i;
-  int j = 0;
-  char ch;
-
-  for(i = 0; (ch = format[i]) != 0; i++)
-  {
-    if(ch == '%')
-    {
-      /* assume the next two are ld */
-      if(format[i+1] == 0 || format[i+2] == 0) { return; }
-      i += 2;
-      j++;
-      if(j == 1) { printf("%s", mpz_get_str((char *) 0, 10, a)); }
-      if(j == 2) { printf("%s", mpz_get_str((char *) 0, 10, b)); }
-      if(j == 3) { printf("%s", mpz_get_str((char *) 0, 10, c)); }
-      if(j == 4) { printf("%s", mpz_get_str((char *) 0, 10, d)); }
-    }
-    else
-    {
-      putchar(ch);
-    }
+{ /* print the four coordinates with the user's format, in which each %ld
+     becomes the %Zd of gmp_printf (the two are of the same length) */
+  long l = strlen(format), i, j;
+  char *fmt = malloc(l + 1);
+  for(i = 0, j = 0; i < l; i++, j++)
+  { fmt[j] = format[i];
+    if(format[i] == '%' && format[i+1] == 'l' && format[i+2] == 'd')
+    { fmt[++j] = 'Z'; fmt[++j] = 'd'; i += 2; }
   }
+  fmt[j] = 0;
+  gmp_printf(fmt, a, b, c, d);
+  free(fmt);
 }
 
 int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
 { /* Given a, b, c and d = d1/d2, check if this gives a point satisfying
      the height condition. If so, print and count it. */
-  long m = (a > abs(b)) ? ((a > abs(c)) ? a : abs(c))
-                        : ((abs(b) > abs(c)) ? abs(b) : abs(c));
+  long m = (a > labs(b)) ? ((a > labs(c)) ? a : labs(c))
+                         : ((labs(b) > labs(c)) ? labs(b) : labs(c));
   long h = bound/m;
   mpz_gcd(&cpf3, d1, d2);
   mpz_divexact(&cpf1, d1, &cpf3);
@@ -1295,9 +1296,10 @@ void error(long errno)
     case 6: printf("\nWrong syntax for optional arguments:\n\n");
     case 2:
       printf("\n");
-      printf("Usage: j-points 'a_0 a_1 ... a_n' max_height\n");
-      printf("                [-n num_primes1] [-N num_primes2] [-q] [-a]\n");
-      printf("                [-r ratio1] [-R ratio2] [-f format] [-s size]\n");
+      printf("Usage: j-points 'a_0 a_1 ... a_d' max_height\n");
+      printf("                [-n num_primes1] [-N num_primes2] [-p num_primes]\n");
+      printf("                [-r ratio1] [-R ratio2] [-s size] [-f format]\n");
+      printf("                [-1] [-q] [-a]\n");
       break;
   }
   fflush(stdout);

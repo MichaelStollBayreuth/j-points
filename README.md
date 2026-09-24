@@ -13,6 +13,12 @@ The program needs the GNU gmp library. Build and test it with
     make test
 
 and install the executable in /usr/local/bin with `make install-bin`.
+`make test` runs four suites and fails if any of them does: test1, one curve
+with many points at height 2000; test2, 61 curves of every kind (testcurves2)
+against the points Magma finds; test3, the options, messages and errors; and
+testbrute, the sieve against an unsieved search of every coprime triple. The
+references were made or checked with Magma (mkref2.m, verify-test3.py), which
+is not needed to run the tests.
 
 Please acknowledge use of the program in published work.
 
@@ -23,7 +29,8 @@ Please acknowledge use of the program in published work.
 
 where
 
-+ f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6;
++ f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6 (zero leading
+  coefficients are dropped);
 + h is the bound on the naive height: the program finds the points
   (a : b : c : d) on the Kummer surface, with coprime integral coordinates,
   that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. On a machine
@@ -35,6 +42,8 @@ The optional arguments, which can be given in any order, are these.
   By default it is chosen automatically, using `ratio1` below.
 + `-N num_primes2`: the number of primes used for the two sieving stages
   together. By default it is chosen automatically, using `ratio2` below.
+  With `-N 0` there is no sieving at all: every coprime triple is checked
+  exactly, which is slow but independent of the sieve.
 + `-p num_primes`: the number of primes, from the beginning of the table
   3, 5, 7, ..., 127, among which the sieving primes are chosen (default 20,
   at most 30).
@@ -53,12 +62,17 @@ The optional arguments, which can be given in any order, are these.
   the size and speed of the cache.
 + `-f format`: a format string for printf to print the points with. It should
   take four long integers, the coordinates on the Kummer surface. The default
-  is `"(%ld, %ld, %ld, %ld)\n"`.
+  is `"(%ld, %ld, %ld, %ld)\n"`. Backslash escapes are not interpreted, so a
+  newline must be given as one (in bash, `-f $'(%ld, %ld, %ld, %ld)\n'`).
+  With `-a`, coordinates that exceed the machine word are printed by gmp
+  through the same format.
 + `-1`: stop as soon as one point has been found.
 + `-q`: suppress all messages other than the points found.
-+ `-a`: find all points whose first three coordinates have naive height at
-  most h, that is, without any bound on the fourth coordinate. Coordinates
-  that exceed the machine word are handled through gmp.
++ `-a`: find all points whose image in P^2 under the first three coordinates
+  (a triple of coprime integers) has naive height at most h, with no bound on
+  the fourth coordinate. The points are printed with all four coordinates
+  coprime, so their first three can exceed h; coordinates that exceed the
+  machine word are printed through gmp.
 
 ## How the program works
 
@@ -142,8 +156,22 @@ sieve together.
   + kummer_init rewritten.
   + A Makefile with the targets test, dist and install-bin, and the reference
     output testbase for the test.
++ 24-Sep-2026, version 2.1: an audit of the code and a test suite. The
+  mathematics and the sieve were found sound; the points of 2.0 are
+  unchanged wherever it printed the right ones. Fixed:
+  + `-N 0` alone silently lost every point of the main search (the first
+    stage was given one prime, the tables none); it is now an unsieved
+    search.
+  + A zero leading coefficient made the program print the origin as a point;
+    zero leading coefficients are now dropped.
+  + `-p` given after `-n` or `-N` left the first stage with more primes than
+    the table had.
+  + With `-a`, a `-f` format other than the default broke the printing of
+    coordinates beyond the machine word; gmp prints them now.
+  + Heights above 2^31 overflowed a difference in the lifting test.
+  + The usage message names every option; the version banner said 1.2.
 
-Michael Stoll, October 1998 - January 2022.
+Michael Stoll, October 1998 - September 2026.
 
-Copyright (C) 1998-2022 Michael Stoll. Distributed under the GNU GPL, version 2
+Copyright (C) 1998-2026 Michael Stoll. Distributed under the GNU GPL, version 2
 or (at your option) any later version; see gpl-2.0.txt.
