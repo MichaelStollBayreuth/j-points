@@ -1,0 +1,84 @@
+#!/bin/sh
+# The options, the messages and the errors of j-points, at small height
+# bounds: a list of invocations whose output "make test3" compares with
+# testbase3.  Before each invocation the script prints its arguments, one
+# per <...>, so that a failing test can be found from the diff of test3.out
+# against testbase3, and so that verify-test3.py knows what it is checking.
+#
+# The reference was checked independently: verify-test3.py reads testbase3
+# and, for every invocation whose output is a list of points, compares it
+# with Magma -- with Magma's own search for the points when all four
+# coordinates are bounded, and with a search over every coprime triple
+# (a, b, c) up to the bound that asks Magma for the points of the Kummer
+# surface above it and for their lifts to the Jacobian when -a bounds only
+# the first three (see the script).
+#
+#  1-6   -a: no bound on the fourth coordinate, coordinates beyond a machine
+#        word printed through gmp (6, with the height bound 60, has them)
+#  7-11  the same curves with the bound on all four coordinates
+# 12-13  -1: the first point found, or nothing when there is none
+# 14-16  -f: the format, also with -a and coordinates beyond a machine word
+# 17-24  -n, -N, -p: pinned numbers of primes, no sieving at all (-n 0 -N 0
+#        and -N 0 alone, which lost the sieved points before 2.1), a
+#        first-stage count above the total, more primes than -p allows, -p
+#        after -n
+# 25-26  -r, -R: the ratios that choose the numbers of primes
+# 27     -s 1: a bit array of 1 KB, three chunks at this height bound
+# 28-29  a zero leading coefficient is dropped (before 2.1 it printed the
+#        origin); a zero polynomial is an error
+# 30-38  the errors: no argument, too few or too many coefficients, a height
+#        bound of 0 or above the maximum, an unknown option, an option
+#        without its value, a ratio and a size that are not positive
+# 39     the report of a run that is not -q, with the primes pinned and the
+#        line naming the version dropped
+JP=${JP:-./j-points}
+# no program to run: exit 2 (the comparison with the reference is make's,
+# whose target fails with 1 when they differ)
+[ -x "$JP" ] || { echo "$JP: not an executable" >&2; exit 2; }
+# options added to every invocation of t and f, not to those of e
+JPOPTS=${JPOPTS:-}
+# run j-points, the arguments announced first, the points sorted
+t() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@" $JPOPTS | LC_ALL=C sort; }
+# the same, with the output run through a filter (the first argument)
+f() { filter=$1; shift; printf '#'; for a; do printf ' <%s>' "$a"; done; printf ' | %s\n' "$filter"; "$JP" "$@" $JPOPTS | eval "$filter"; }
+# an invocation that is expected to fail: no $JPOPTS, output unsorted
+e() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@"; }
+t '1 178 817 -274 16 1' 20 -q -a
+t '21 116 171 128 55 12 1' 20 -q -a
+t '3 -1 2 5 -4 1 4' 20 -q -a
+t '0 1 2 -1 3 1 1' 20 -q -a
+t '1 2 -1 3 1 2' 20 -q -a
+t '1 178 817 -274 16 1' 60 -q -a
+t '1 178 817 -274 16 1' 20 -q
+t '21 116 171 128 55 12 1' 20 -q
+t '3 -1 2 5 -4 1 4' 20 -q
+t '0 1 2 -1 3 1 1' 20 -q
+t '1 2 -1 3 1 2' 20 -q
+t '1 178 817 -274 16 1' 200 -q -1
+t '2 0 0 0 0 0 3' 300 -q -1
+f 'cat; echo' '1 6 5 22 22 8 1' 200 -q -f '[%ld:%ld:%ld:%ld]'
+f 'cat; echo' '1 178 817 -274 16 1' 60 -q -a -f '<%ld|%ld|%ld|%ld>'
+f 'cat; echo' '1 178 817 -274 16 1' 100 -q -f '%ld,%ld,%ld,%ld;'
+t '21 116 171 128 55 12 1' 100 -q -n 0 -N 0
+t '21 116 171 128 55 12 1' 100 -q -N 0
+t '21 116 171 128 55 12 1' 300 -q -n 0
+t '21 116 171 128 55 12 1' 300 -q -n 2
+t '21 116 171 128 55 12 1' 300 -q -n 8 -N 5
+t '21 116 171 128 55 12 1' 300 -q -n 3 -N 30 -p 30
+t '21 116 171 128 55 12 1' 100 -q -p 3
+t '21 116 171 128 55 12 1' 300 -q -n 25 -p 10
+t '21 116 171 128 55 12 1' 300 -q -r 100 -R 1.5
+t '21 116 171 128 55 12 1' 300 -q -r 1e9 -R 1e9
+t '1 178 817 -274 16 1' 4500 -q -s 1
+t '1 6 5 22 22 8 0' 100 -q
+e '0 0 0 0 0 0 0' 100
+e
+e '1 2 3 4 5' 100
+e '1 2 3 4 5 6 7 8' 100
+e '1 2 3 4 5 6 7' 0
+e '1 2 3 4 5 6 7' 3037000500
+e '1 2 3 4 5 6 7' 100 -x
+e '1 2 3 4 5 6 7' 100 -n
+e '1 2 3 4 5 6 7' 100 -r 0
+e '1 2 3 4 5 6 7' 100 -s 0
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -n 3 -N 6

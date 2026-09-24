@@ -1,0 +1,77 @@
+# Curves and height bounds for test2.sh and mkref2.m: coefficients a_0 ... a_d
+# of y^2 = f(x), a height bound, and a comment, separated by semicolons.
+# The reference testbase2 was made from this file by mkref2.m (Magma).
+#
+# random curves of degree 6 with coefficients in [-10, 10], at height bounds
+# of every residue mod 64 that matters for the bit arrays
+-7 0 6 6 10 -7 -3;63;random
+9 9 7 3 8 7 5;64;random
+8 4 -3 -10 9 -8 -7;65;random
+-1 -7 4 -10 5 0 -4;127;random
+2 -2 1 1 2 6 10;128;random
+-8 0 -8 7 7 -1 -1;129;random
+4 -6 10 8 -1 -10 1;200;random
+1 4 3 -8 2 8 7;255;random
+5 -7 3 6 9 5 2;256;random
+6 -2 3 8 5 6 6;257;random
+-10 8 -3 -6 -9 6 -7;300;random
+9 3 5 -6 5 -3 -7;383;random
+10 4 5 7 -2 7 2;384;random
+-1 7 10 6 5 2 3;385;random
+-4 -1 -2 -10 -9 -6 10;400;random
+9 4 6 5 1 -4 -2;447;random
+5 4 6 5 3 7 -9;448;random
+-1 0 4 -7 4 6 -2;449;random
+4 -5 3 5 -8 10 -2;500;random
+5 1 -7 -4 3 -6 4;511;random
+-10 -8 -10 4 8 7 -8;512;random
+9 -4 -3 -7 9 -9 7;513;random
+-2 10 1 -6 -10 0 8;130;random
+8 5 -6 7 -3 5 8;190;random
+# the three curves of the README examples
+1 6 5 22 22 8 1;500;README example 1
+1 178 817 -274 16 1;2000;README example 2, degree 5 monic, many points
+1 178 817 -274 16 1;4500;the same, high enough for two chunks of the bit array with -s 1 (test3)
+21 116 171 128 55 12 1;300;README example 3 (test1 has it at 2000)
+# square leading coefficient: rational points at infinity, points (0 : 0 : 1 : d)
+3 -1 2 5 -4 1 4;300;f6 = 4
+-2 3 1 -1 2 0 9;300;f6 = 9, f5 = 0
+5 2 -3 1 1 -2 1;300;f6 = 1
+1 1 1 1 1 1 25;300;f6 = 25
+# negative leading coefficient
+3 2 -1 4 1 -2 -1;300;f6 = -1
+10 -3 5 1 -2 3 -4;300;f6 = -4
+7 0 0 0 0 0 -1;300;y^2 = 7 - x^6
+# rational roots: 2-torsion
+0 1 2 -1 3 1 1;300;root 0
+0 -2 1 3 -1 2 1;300;root 0
+-6 1 4 1 -2 1 1;300;(x-1)(x+2)(x^4+x+3)
+-12 22 -12 -4 11 -6 1;300;(x-1)(x-2)(x-3)(x^3+2)
+-36 0 49 0 -14 0 1;300;(x^2-1)(x^2-4)(x^2-9): full 2-torsion, even polynomial
+# f a square modulo the small primes: bad reduction there
+106 2 1 2 2 0 1;300;(x^3+x+1)^2 + 3*5*7
+30031 -2 1 2 -2 0 1;300;(x^3-x+1)^2 + 2*3*5*7*11*13
+# small primes dividing the leading coefficient
+1 2 3 4 5 6 15;300;f6 = 15
+2 -1 3 0 1 -2 30;300;f6 = 30
+# degree 5, monic: the first coordinate is a square
+3 1 0 -2 0 1;500;monic
+1 -1 2 0 -3 1;500;monic
+-4 3 0 1 2 1;500;monic
+2 0 -5 1 0 1;500;monic
+0 1 -3 2 1 1;500;monic, root 0
+# degree 5, not monic
+1 2 -1 3 1 2;300;f5 = 2
+4 -1 0 2 -3 -3;300;f5 = -3
+1 0 -2 1 1 4;300;f5 = 4
+3 1 -1 0 2 12;300;f5 = 12
+5 -2 3 1 -1 -1;300;f5 = -1
+1 1 1 1 1 36;300;f5 = 36
+# large coefficients
+1000000000007 -3 2 -1 5 -2 1;200;f0 = 10^12 + 7
+123456789012345678901 2 -3 1 4 -1 3;200;f0 beyond 2^64
+-98765432109876543210 1 2 3 4 5;200;degree 5, f0 beyond 2^64
+3 -1 2 1 -1 2 123456789012345678901;200;f6 beyond 2^64
+# few points expected
+2 0 0 0 0 0 3;300;y^2 = 3 x^6 + 2
+7 3 1 -5 2 4 -3;300;
