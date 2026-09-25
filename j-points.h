@@ -107,6 +107,7 @@ extern _Thread_local long num_surv3;   /* ... of the third stage */
 extern _Thread_local bit_array *survivors; /* the bit array of the thread */
 extern long num_threads;
 extern long height;          /* The height bound */
+extern long dbound;          /* The bound on the fourth coordinate */
 extern long array_size;      /* The size of the survivors array (in longs) */
 extern bit_array begmask, endmask;
    /* Bit masks for the beginning and end of the sieving array */

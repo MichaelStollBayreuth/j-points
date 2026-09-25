@@ -111,7 +111,7 @@ static long pr[NUM_PRIMES], rowlen[NUM_PRIMES], blocklen[NUM_PRIMES];
 static long period[NUM_PRIMES];      /* the period of the walk, see above */
 static _Thread_local bit_array *rowptr[NUM_PRIMES];
 static long w_low_all, w_high_all;   /* the words of a whole row */
-static double th, th2;               /* the height bound and its square */
+static double th, th2;               /* the bound on the fourth coordinate and its square */
 
 /* the tube's bands (see there): the words collected for the rows of the
    band a thread analyses, per row up to TUBE_RANGES ranges [lo, hi) */
@@ -148,7 +148,7 @@ void init_sift(void)
     recip3[n] = ((1UL << 32) + p - 1) / p;
   }
   num_chunks = CEIL(w_high - w_low, array_size);
-  th = (double)height; th2 = th*th;
+  th = (double)dbound; th2 = th*th;
   init_thread_sieve();
   chunks = (chunk_spec *)malloc(num_chunks*sizeof(chunk_spec));
   walk = (walk_spec *)malloc((num_chunks*np1 + 1)*sizeof(walk_spec));
@@ -567,7 +567,7 @@ void tube_sample(double *words_per_row, double *cells_per_row)
 {
   long k, rows = 0, w_low = (-height)>>LONG_SHIFT, w_high = (height>>LONG_SHIFT) + 1;
   double words = 0.0, cells = 0.0;
-  th = (double)height; th2 = th*th;
+  th = (double)dbound; th2 = th*th;
   if(band_nr == NULL) { init_thread_sieve(); }
   tube_counting = 1;
   for(k = 0; k < 24; k++)

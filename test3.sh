@@ -33,6 +33,14 @@
 #        positive
 # 39     the report of a run that is not -q, with the primes of the three
 #        stages pinned and the line naming the version dropped
+# 40     a polynomial that is not squarefree ((x^2 + 1)^2 (x^2 + 2)): an
+#        error
+# 41     -f with the escapes \t, \n and \\ interpreted
+# 42-44  -w: the fourth coordinate bounded separately (its bound below and
+#        above the height bound), and together with -a (the point sets are
+#        those of the -a runs of the same curve at the same height bound,
+#        cut to g m <= h and |d| <= bound4)
+# 45     the report of a run with -w, the line naming the version dropped
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
 # whose target fails with 1 when they differ)
@@ -84,3 +92,9 @@ e '1 2 3 4 5 6 7' 100 -n
 e '1 2 3 4 5 6 7' 100 -p 0
 e '1 2 3 4 5 6 7' 100 -s 0
 f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -n 3 -M 6 -N 9
+e '2 0 5 0 4 0 1' 100
+f 'cat; echo' '1 178 817 -274 16 1' 60 -q -f '<%ld:%ld:%ld:%ld>\t\\\n'
+t '21 116 171 128 55 12 1' 60 -q -w 20
+t '21 116 171 128 55 12 1' 20 -q -w 500
+t '1 178 817 -274 16 1' 60 -q -a -w 100000
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -w 50 -n 3 -M 6 -N 9
