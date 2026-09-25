@@ -29,6 +29,14 @@ INSTALL_DIR = /usr/local
 
 CCFLAGS0 = -Wall -O2 -fomit-frame-pointer
 CCFLAGS =
+# The width of the sieve's passes, in words (see VW in j-points.h): the
+# default is the scalar walk; "make VECTOR=avx2" builds the passes with
+# vectors of four words (AVX2), "make VECTOR=sse2" with two (SSE2, any
+# x86-64).  The build is then tied to that instruction set.
+VECTOR =
+VFLAGS_avx2 = -DVW=4 -mavx2
+VFLAGS_sse2 = -DVW=2 -msse2
+VFLAGS = ${VFLAGS_${VECTOR}}
 LFLAGS = -lgmp -lgcc -lc -lm
 
 VERSION = 3.0
@@ -136,12 +144,12 @@ j-points: j-points.o j-sift.o
 	${CC} j-points.o j-sift.o -o j-points ${LFLAGS} ${CCFLAGS}
 
 j-points.o: j-points.c j-points.h
-	${CC} j-points.c -c -o j-points.o ${CCFLAGS0} ${CCFLAGS}
+	${CC} j-points.c -c -o j-points.o ${CCFLAGS0} ${VFLAGS} ${CCFLAGS}
 
 j-sift.o: j-sift.c j-points.h
-	${CC} j-sift.c -c -o j-sift.o ${CCFLAGS0} -funroll-loops ${CCFLAGS}
+	${CC} j-sift.c -c -o j-sift.o ${CCFLAGS0} -funroll-loops ${VFLAGS} ${CCFLAGS}
 
 j-sift.s: j-sift.c j-points.h
-	${CC} j-sift.c -S -o j-sift.s ${CCFLAGS0} -funroll-loops ${CCFLAGS}
+	${CC} j-sift.c -S -o j-sift.s ${CCFLAGS0} -funroll-loops ${VFLAGS} ${CCFLAGS}
 
 

@@ -13,6 +13,10 @@ The program needs the GNU gmp library. Build and test it with
     make test
 
 and install the executable in /usr/local/bin with `make install-bin`.
+The default build is portable; `make VECTOR=avx2 j-points` (or `sse2`)
+builds the sieve's passes over the bit array with vectors of four (two)
+words, which is faster on a machine with that instruction set and does not
+run on one without.
 `make test` runs six suites and fails if any of them does: test1, one curve
 with many points at height 2000; test2, 61 curves of every kind (testcurves2)
 at heights up to 4500, whose reference is the program's output checked by an
@@ -238,6 +242,9 @@ sieve together.
     at most h can exist (see "How the program works"); rigorous bounds, so
     the points are the same. 1.3x to 14x at 2000 on the test curves, more
     at larger height bounds; nothing for `-a`.
+  + The passes of the sieve over the bit array can be built with vectors
+    of two or four words (`make VECTOR=sse2` or `avx2`), behind a
+    compile-time switch: 1.2x on `-a` runs with AVX2, 1.1x with SSE2.
 
 Michael Stoll, October 1998 - September 2026.
 
