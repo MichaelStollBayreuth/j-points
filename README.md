@@ -191,6 +191,13 @@ sieve together.
     MB; now 15-20 MB), the row pointers advanced from row to row, and the
     fill of the bit array merged into the first prime's pass. Another
     1.1-1.15x.
+  + The rows (a, b) that a sieving prime p empties outright are no longer
+    sieved: when the leading coefficient is not a square modulo p, the
+    curve has no point at infinity over F_p, so no point reduces to a
+    Kummer point with first coordinate 0 and second coordinate nonzero
+    modulo p; for an a divisible by such primes only the b divisible by
+    them are searched. Nothing on curves with a square leading
+    coefficient, 1.2x on the record curve (a quarter of its rows).
 
 Michael Stoll, October 1998 - September 2026.
 

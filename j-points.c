@@ -674,6 +674,27 @@ nexta2: ;
   return(0);
 }
 
+/* The rows (a, b) with p | a and p not | b, for a sieving prime p modulo
+   which the leading coefficient is not a square: no point of J reduces to
+   (0 : b : c) mod p with b nonzero then (the curve has no point at
+   infinity over F_p), and the sieve would empty every such row.  So for
+   a given a the loop over b takes only the multiples of the product of
+   these primes, which this function returns -- or height + 1 when the
+   product exceeds the height bound, so that b = 0 is the only row (and
+   a = 0, whose b starts at 1, has none). */
+static long row_step(long a)
+{
+  long m = 1, n;
+  for(n = 0; n < sieve_primes2; n++)
+  { long pn = pnn[n], p = prime[pn];
+    if(!has_infinity[pn] && a % p == 0)
+    { m *= p;
+      if(m > height) { return(height + 1); }
+    }
+  }
+  return(m);
+}
+
 void find_points(void)
 {
   long a, b;
@@ -700,23 +721,27 @@ void find_points(void)
   { /* can take only squares for the first coordinate */
     long aa;
     for(a = 0; (aa = a*a) <= height; a++)
-      for(b = (a == 0) ? 1 : -height; b <= height; b++)
+    { long m = row_step(aa);
+      for(b = (a == 0) ? m : -(height/m)*m; b <= height; b += m)
       {
 #ifdef VERBOSE
         printf(" a = %ld, b = %ld\n", aa, b);
 #endif
         if(sift(aa, b) && one_point) return;
       }
+    }
   }
   else
   { for(a = 0; a <= height; a++)
-      for(b = (a == 0) ? 1 : -height; b <= height; b++)
+    { long m = row_step(a);
+      for(b = (a == 0) ? m : -(height/m)*m; b <= height; b += m)
       {
 #ifdef VERBOSE
         printf(" a = %ld, b = %ld\n", a, b);
 #endif
         if(sift(a, b) && one_point) return;
       }
+    }
   }
   return;
 }
