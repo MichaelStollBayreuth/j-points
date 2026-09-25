@@ -224,6 +224,8 @@ sieve together.
   + kummer_init rewritten.
   + A Makefile with the targets test, dist and install-bin, and the reference
     output testbase for the test.
++ From September 2026, work on improving the program was done with the
+  help of **Claude Code** (mostly Fable 5.1).
 + 24-Sep-2026, version 2.1: an audit of the code and a test suite. The
   mathematics and the sieve were found sound; the points of 2.0 are
   unchanged wherever it printed the right ones. Fixed:
