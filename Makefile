@@ -60,7 +60,7 @@ FAIL = { echo ${FAILED}; false; }
 # differs from its reference prints "Test failed!" and fails its target;
 # "make test" runs every suite whatever the earlier ones did and fails at
 # the end if any of them failed.
-TESTS = test1 test2 test3 test4 testbrute
+TESTS = test1 test2 test3 test4 testbrute testrich
 
 .PHONY: test
 test:
@@ -110,8 +110,8 @@ testbrute: j-points testcurves2 testbrute.sh
 # testbase-rich, the output of 2.1 checked by verify-test2.sh against the
 # unsieved run (JPOPTS=-a CURVES=testcurves-rich REF=testbase-rich
 # ./verify-test2.sh) -- the regime of the enumeration of points of bounded
-# canonical height, and the baseline for the work on the sieve; not in
-# "make test" (about 8 s).
+# canonical height, and the timing suite for the work on the sieve (about
+# 8 s).
 testrich: j-points testcurves-rich testbase-rich test2.sh
 	JPOPTS=-a CURVES=testcurves-rich ./test2.sh > testrich.out 2>&1
 	cmp -s testbase-rich testrich.out || ${FAIL}

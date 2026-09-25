@@ -1,4 +1,4 @@
-# Point-rich curves for "make testrich": the curves of ratpoints' testdata-many.h
+# Point-rich curves for "make testrich" (part of "make test"): the curves of ratpoints' testdata-many.h
 # (genus 2 curves with many rational points) whose coefficients are small; the
 # ones with coefficients of 10^6 and more have no point of naive height below
 # 10^4 on the Kummer surface, so they say nothing here.  Same format as
