@@ -38,12 +38,13 @@ Please acknowledge use of the program in published work.
 ## Usage
 
     j-points 'a_0 a_1 ... a_d' h [-n num_primes1] [-M num_primes2] [-N num_primes3]
-             [-p num_primes] [-s size] [-t threads] [-f format] [-1] [-q] [-a]
+             [-p num_primes] [-s size] [-t threads] [-f format] [-w bound4]
+             [-1] [-q] [-a]
 
 where
 
 + f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6 (zero leading
-  coefficients are dropped);
+  coefficients are dropped); f must be squarefree, which the program checks;
 + h is the bound on the naive height: the program finds the points
   (a : b : c : d) on the Kummer surface, with coprime integral coordinates,
   that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. On a machine
@@ -76,10 +77,18 @@ The optional arguments, which can be given in any order, are these.
   With `-1` the search runs in one thread.
 + `-f format`: a format string for printf to print the points with. It should
   take four long integers, the coordinates on the Kummer surface. The default
-  is `"(%ld, %ld, %ld, %ld)\n"`. Backslash escapes are not interpreted, so a
-  newline must be given as one (in bash, `-f $'(%ld, %ld, %ld, %ld)\n'`).
-  With `-a`, coordinates that exceed the machine word are printed by gmp
-  through the same format.
+  is `"(%ld, %ld, %ld, %ld)\n"`. The escapes `\n`, `\t` and `\\` are
+  interpreted (so `-f '%ld %ld %ld %ld\n'` prints one point per line); any
+  other backslash is kept. With `-a`, coordinates that exceed the machine
+  word are printed by gmp through the same format.
++ `-w bound4`: the bound on the fourth coordinate, in place of h: the program
+  finds the points with |a|, |b|, |c| <= h and |d| <= bound4. This is the
+  enumeration of the points of bounded modified naive height (Mueller-Stoll,
+  Canonical heights on genus-2 Jacobians, Section 17), in which the fourth
+  coordinate is divided by the maximum ||f|| of the |a_i|: the points with
+  modified height at most log N are exactly those of `-w W` with h = N and
+  W = ||f|| N. Together with `-a`, the bound on the first three coordinates
+  is that of `-a` and the fourth is bounded by bound4.
 + `-1`: stop as soon as one point has been found.
 + `-q`: suppress all messages other than the points found.
 + `-a`: find all points whose image in P^2 under the first three coordinates
@@ -267,6 +276,11 @@ sieve together.
     500 and more, and only when it admits less than everything modulo 16.
     1.5x on `-a` runs of small-coefficient curves, 1.1x on #28, nothing on
     the record curve (f is a square modulo 4 there).
+  + The polynomial is checked to be squarefree. The escapes `\n`, `\t` and
+    `\\` in the format of `-f` are interpreted. `-w bound4` bounds the
+    fourth coordinate separately from the first three, which gives the
+    enumeration of the points of bounded modified naive height without a
+    post-filter.
   + Threads (`-t`): the values of the first coordinate are handed out to the
     threads in order, each sieves its rows with its own state, and the
     points of each value are printed in order, so the output is that of a

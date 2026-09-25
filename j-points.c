@@ -161,6 +161,10 @@ entry prec[NUM_PRIMES];  /* This array is used for sorting in order to
                             determine the `best' sieving primes. */
 
 long height;          /* The height bound */
+long dbound = -1;     /* The bound on the fourth coordinate: the height
+                         bound, or the value of -w */
+int dbounded = 1;     /* whether the fourth coordinate is bounded at all
+                         (not with -a, unless -w gave a bound) */
 long sieve_primes1;   /* The number of primes used for the first sieving stage */
 long sieve_primes2;   /* The number of primes used for the first two stages */
 long sieve_primes3;   /* The number of primes used for all three stages */
@@ -192,8 +196,6 @@ static outnode *out_list = NULL;     /* finished units not yet printed, by unit 
 static _Thread_local char *obuf = NULL;       /* the buffer of the unit in work */
 static _Thread_local size_t olen = 0, ocap = 0;
 
-long bound;
-
 bit_array begmask, endmask;  /* Bit masks for the beginning and end of
                                 the sieving array */
 
@@ -206,6 +208,8 @@ void init_thread_mpz(void);
 void find_points(void);
 void read_input(long, char *argv[]);
 char *scan_mpz(char*, MP_INT*);
+static int squarefree(void);
+static char *unescape(const char *);
 void init_inverses(void);
 void init_squares(void);
 void init_fmodpsquare(void);
@@ -242,7 +246,6 @@ int main(int argc, char *argv[])
   }
   begmask = (~0UL)<<((-height) & LONG_MASK);
   endmask = (~0UL)>>((~height) & LONG_MASK);
-  bound = (all_points) ? MAX_HEIGHT : height;
   s = 2*CEIL(height+1, LONG_LENGTH);
   array_size <<= 13 - LONG_SHIFT; /* from kbytes to longs */
   if(s < array_size) array_size = s;
@@ -277,6 +280,7 @@ void read_input(long argc, char *argv[])
   }
   if(degree < 5) error(5);
   if(degree == 5) mpz_set_si(&coeffs[6], 0);
+  if(!squarefree()) error(9);
   if(sscanf(argv[2], " %ld", &height) != 1 || height < 1 || height > MAX_HEIGHT)
   { error(4); }
   /* Set global variables to their default values */
@@ -322,13 +326,17 @@ void read_input(long argc, char *argv[])
           if(array_size <= 0) error(6);
           i++;
           break;
-        case 'f': /* printing format */
+        case 'f': /* printing format, its backslash escapes interpreted */
           if(argc == i) error(6);
           i++;
-          { long l = strlen(argv[i]);
-            print_format = malloc((l+1)*sizeof(char));
-            strcpy(print_format, argv[i]);
-          }
+          print_format = unescape(argv[i]);
+          i++;
+          break;
+        case 'w': /* the bound on the fourth coordinate */
+          if(argc == i) error(6);
+          i++;
+          if(sscanf(argv[i], " %ld", &dbound) != 1) error(6);
+          if(dbound < 1) error(6);
           i++;
           break;
         case 'q': /* quiet */
@@ -375,6 +383,10 @@ void read_input(long argc, char *argv[])
     sieve_primes1 = sieve_primes3;
   if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
     sieve_primes1 = sieve_primes2;
+  /* the bound on the fourth coordinate: -w's, else the height bound, and
+     none with -a unless -w gave one */
+  dbounded = (dbound > 0) || !all_points;
+  if(dbound <= 0) { dbound = height; }
 }
 
 /* Read in a long long long integer. Should really be in the library. */
@@ -394,6 +406,56 @@ char *scan_mpz(char *s, MP_INT *x)
   if(neg) mpz_neg(&tmp2, &tmp2);
   mpz_set(x, &tmp2);
   return s;
+}
+
+/* Is f squarefree?  It must be, for a curve of genus 2: the gcd of f and
+   f' over Q, by Euclid's algorithm on polynomials with rational
+   coefficients (of degree at most 6), must be a constant. */
+static int squarefree(void)
+{
+  mpq_t u[7], v[7], q, t, *pu = u, *pv = v, *ps;
+  long du = degree, dv = degree - 1, i;
+  int result;
+  for(i = 0; i <= 6; i++) { mpq_init(u[i]); mpq_init(v[i]); }
+  mpq_init(q); mpq_init(t);
+  for(i = 0; i <= degree; i++) { mpq_set_z(u[i], &coeffs[i]); }
+  for(i = 1; i <= degree; i++)
+  { mpq_set_z(v[i-1], &coeffs[i]); mpq_set_ui(t, (unsigned long)i, 1);
+    mpq_mul(v[i-1], v[i-1], t);
+  }
+  /* u of degree du, v of degree dv <= du: replace u by its remainder
+     modulo v, then swap, until v is 0; u is then the gcd */
+  while(dv >= 0)
+  { while(du >= dv)
+    { mpq_div(q, pu[du], pv[dv]);
+      for(i = 0; i <= dv; i++)
+      { mpq_mul(t, q, pv[i]); mpq_sub(pu[i + du - dv], pu[i + du - dv], t); }
+      /* the leading term of u is gone (exactly) */
+      du--;
+      while(du >= 0 && mpq_sgn(pu[du]) == 0) { du--; }
+    }
+    ps = pu; pu = pv; pv = ps;
+    i = du; du = dv; dv = i;
+  }
+  result = (du == 0);
+  for(i = 0; i <= 6; i++) { mpq_clear(u[i]); mpq_clear(v[i]); }
+  mpq_clear(q); mpq_clear(t);
+  return(result);
+}
+
+/* the format of -f with its backslash escapes \n, \t and \\ interpreted;
+   any other backslash is kept */
+static char *unescape(const char *s)
+{
+  char *r = malloc(strlen(s) + 1), *d = r;
+  if(r == NULL) { error(7); }
+  for( ; *s; s++)
+  { if(*s == '\\' && (s[1] == 'n' || s[1] == 't' || s[1] == '\\'))
+    { *d++ = (s[1] == 'n') ? '\n' : (s[1] == 't') ? '\t' : '\\'; s++; }
+    else { *d++ = *s; }
+  }
+  *d = 0;
+  return(r);
 }
 
 /**************************************************************************
@@ -1639,11 +1701,21 @@ int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
      the height condition. If so, print and count it. */
   long m = (a > labs(b)) ? ((a > labs(c)) ? a : labs(c))
                          : ((labs(b) > labs(c)) ? labs(b) : labs(c));
-  long h = bound/m;
+  /* the coordinates of the point are (g a, g b, g c, d1) with g = d2 once
+     d is in lowest terms: g m is bounded by the height bound (not with
+     -a), d1 by the bound on the fourth coordinate (with -a only when -w
+     gave one).  A point is printed as machine words when its coordinates
+     are at most MAX_HEIGHT, so that the products of two of them fit a
+     long in the lifting test; otherwise through gmp. */
+  long h = (all_points ? MAX_HEIGHT : height)/m;
+  long dmax = (dbounded && dbound < MAX_HEIGHT) ? dbound : MAX_HEIGHT;
+  int dok;
   mpz_gcd(&cpf3, d1, d2);
   mpz_divexact(&cpf1, d1, &cpf3);
   mpz_divexact(&cpf2, d2, &cpf3);
-  if(mpz_cmp_si(&cpf1, bound) <= 0 && mpz_cmp_si(&cpf1, -bound) >= 0
+  dok = !dbounded
+        || (mpz_cmp_si(&cpf1, dbound) <= 0 && mpz_cmp_si(&cpf1, -dbound) >= 0);
+  if(mpz_cmp_si(&cpf1, dmax) <= 0 && mpz_cmp_si(&cpf1, -dmax) >= 0
       && mpz_cmp_si(&cpf2, h) <= 0 && mpz_cmp_si(&cpf2, -h) >= 0)
   { long g = mpz_get_si(&cpf2), d = mpz_get_si(&cpf1);
     if(g < 0) { g = -g; d = -d; }
@@ -1668,12 +1740,16 @@ int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
       return(0);
     }
   }
-  else if(all_points) /* no bound for the height and machine-size is not sufficient */
-  {
-    /* scale by denominator &cpf2; fourth coordinate is numerator &cpf1 */
+  else if(dok && (all_points
+                  || (mpz_cmp_si(&cpf2, h) <= 0 && mpz_cmp_si(&cpf2, -h) >= 0)))
+  { /* the coordinates exceed a machine word (with -a, or with a bound on
+       the fourth coordinate above MAX_HEIGHT) */
+    /* scale by denominator &cpf2; fourth coordinate is numerator &cpf1;
+       the sign of the scaling made positive, as for machine words */
 #ifdef VERBOSE
     printf("  coordinates exceed machine size ");
 #endif
+    if(mpz_sgn(&cpf2) < 0) { mpz_neg(&cpf2, &cpf2); mpz_neg(&cpf1, &cpf1); }
     mpz_mul_si(&cpfa, &cpf2, a);
     mpz_mul_si(&cpfb, &cpf2, b);
     mpz_mul_si(&cpfc, &cpf2, c);
@@ -1842,7 +1918,10 @@ void message(long n, long total)
                    sieve_primes3);
             break;
     case 5: printf("\ny^2 = "); print_poly(coeffs, total); printf("\n"); break;
-    case 6: printf("max. Height = %ld\n", total); break;
+    case 6: printf("max. Height = %ld\n", total);
+            if(dbounded && dbound != height)
+            { printf("Bound on the fourth coordinate = %ld\n", dbound); }
+            break;
     case 7: { long i;
               printf("Sieving primes:\n First stage: ");
               for(i = 0; i < sieve_primes1; i++)
@@ -1903,13 +1982,14 @@ void error(long errno)
     case 5: printf("\nThe polynomial must have degree at least 5.\n\n"); break;
     case 7: printf("\nNot enough memory.\n\n"); break;
     case 8: printf("\nCould not start a thread.\n\n"); break;
+    case 9: printf("\nThe polynomial must be squarefree.\n\n"); break;
     case 6: printf("\nWrong syntax for optional arguments:\n\n");
     case 2:
       printf("\n");
       printf("Usage: j-points 'a_0 a_1 ... a_d' max_height\n");
       printf("                [-n num_primes1] [-M num_primes2] [-N num_primes3]\n");
       printf("                [-p num_primes] [-s size] [-t threads] [-f format]\n");
-      printf("                [-1] [-q] [-a]\n");
+      printf("                [-w bound4] [-1] [-q] [-a]\n");
       break;
   }
   fflush(stdout);

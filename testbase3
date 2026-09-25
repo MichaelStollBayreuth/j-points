@@ -539,7 +539,7 @@ The polynomial must have degree at least 5.
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-1] [-q] [-a]
+                [-w bound4] [-1] [-q] [-a]
 # <1 2 3 4 5> <100>
 
 The polynomial must have degree at least 5.
@@ -566,7 +566,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-1] [-q] [-a]
+                [-w bound4] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-n>
 
 Wrong syntax for optional arguments:
@@ -575,7 +575,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-1] [-q] [-a]
+                [-w bound4] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-p> <0>
 
 Wrong syntax for optional arguments:
@@ -584,7 +584,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-1] [-q] [-a]
+                [-w bound4] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-s> <0>
 
 Wrong syntax for optional arguments:
@@ -593,7 +593,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-1] [-q] [-a]
+                [-w bound4] [-1] [-q] [-a]
 # <21 116 171 128 55 12 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
 
 
@@ -628,3 +628,147 @@ Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Ma
 2528 candidates survived the third stage.
 
 Found 8 rational points on K lifting to J.
+# <2 0 5 0 4 0 1> <100>
+
+The polynomial must be squarefree.
+
+# <1 178 817 -274 16 1> <60> <-q> <-f> <<%ld:%ld:%ld:%ld>\t\\\n> | cat; echo
+<0:1:-6:36>	\
+<0:1:-2:4>	\
+<0:1:0:0>	\
+<0:1:4:16>	\
+<1:-17:0:-2>	\
+<1:-9:0:-6>	\
+<1:-6:0:-12>	\
+<1:-2:0:-52>	\
+<1:4:-6:-40>	\
+<1:4:0:40>	\
+<1:6:-2:32>	\
+<1:8:2:-24>	\
+<1:30:-6:48>	\
+
+# <21 116 171 128 55 12 1> <60> <-q> <-w> <20>
+(0, 0, 1, -19)
+# <21 116 171 128 55 12 1> <20> <-q> <-w> <500>
+(0, 0, 1, -19)
+(0, 1, -2, 26)
+(0, 1, -2, 38)
+(1, -12, 17, -300)
+(1, -2, -5, 64)
+(1, -2, 3, -112)
+(1, -4, -3, 28)
+(1, -4, 1, -44)
+(1, -4, 4, -91)
+(1, -4, 5, -116)
+(1, -6, -1, -24)
+(1, -6, 7, -136)
+(3, -14, 3, -117)
+(3, -6, 1, -160)
+(5, -14, 3, -232)
+# <1 178 817 -274 16 1> <60> <-q> <-a> <-w> <100000>
+(0, 1, -17, 289)
+(0, 1, -2, 4)
+(0, 1, -6, 36)
+(0, 1, -9, 81)
+(0, 1, 0, 0)
+(0, 1, 4, 16)
+(0, 16, 100, 625)
+(0, 81, 252, 784)
+(1, -10, -28, -852)
+(1, -11, 18, 3466)
+(1, -13, -35, -831)
+(1, -15, 54, 438)
+(1, -17, 0, -2)
+(1, -2, -24, -589)
+(1, -2, 0, -125)
+(1, -2, 0, -52)
+(1, -27, 10, 110)
+(1, -5, -36, -682)
+(1, -6, -56, -460)
+(1, -6, 0, -12)
+(1, -8, 12, 104)
+(1, -9, 0, -6)
+(1, 0, 0, 7104)
+(1, 11, 13, -351)
+(1, 15, 24, -618)
+(1, 2, -4, -348)
+(1, 2, -8, -321)
+(1, 22, -42, 1024)
+(1, 30, -6, 48)
+(1, 4, -6, -40)
+(1, 4, 0, 40)
+(1, 40, -12, 152)
+(1, 5, -38, -162)
+(1, 5, 2, 138)
+(1, 6, -2, 32)
+(1, 60, 54, 288)
+(1, 8, 10, -72)
+(1, 8, 2, -24)
+(100, 1025, -850, -816)
+(16, 25, 6, 24364)
+(169, -845, -6084, -32822)
+(1764, 5488, 0, 84981)
+(196, -192, 112, 9989)
+(25, -475, 850, 46974)
+(25, -50, -600, -2996)
+(25, 41, 22, 1014)
+(2500, 15625, 0, 70156)
+(289, -4913, 0, -5470)
+(36, 153, -450, 1000)
+(4, -27, 15, 2985)
+(4, -32, 48, 23557)
+(4, -55, -44, -1812)
+(4, -56, 36, 341)
+(4, -7, -52, -3084)
+(4, 16, 0, 197)
+(4, 21, 7, 185)
+(4, 232, -60, 37)
+(4, 25, -6, 128)
+(4, 25, 0, 116)
+(4, 40, 132, 1013)
+(484, 2057, -6050, -5568)
+(49, -539, 882, 7190)
+(81, -729, 0, -2714)
+(9, -171, 306, 2626)
+(9, -54, 0, -425)
+(9, 10, -56, -89)
+(9, 13, 10, 370)
+(9, 144, -72, 1744)
+(9, 18, -72, -188)
+(9, 28, 0, 600)
+(9, 34, 10, 2176)
+(9, 43, -12, 186)
+(9, 63, 9, 313)
+# <21 116 171 128 55 12 1> <100> <-w> <50> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = x^6 + 12 x^5 + 55 x^4 + 128 x^3 + 171 x^2 + 116 x + 21
+
+max. Height = 100
+Bound on the fourth coordinate = 50
+Sieving in the tube of the bound on the fourth coordinate:
+about 3.38 words per row, 0.12 cells of the analysis per row.
+0 primes used for the first stage of sieving,
+6 primes used for the first two stages together,
+9 primes used for all three stages together.
+Sieving primes:
+ First stage: 
+ Second stage: 13, 23, 7, 17, 19, 11
+ Third stage: 59, 61, 41
+Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Max(3) = 0.925926
+
+(0, 0, 1, -19)
+(0, 1, -2, 38)
+(0, 1, -2, 26)
+(1, -6, -1, -24)
+(1, -4, -3, 28)
+(1, -4, 1, -44)
+
+64385 candidates survived the first stage,
+47969 candidates survived the second stage,
+2522 candidates survived the third stage.
+
+Found 6 rational points on K lifting to J.
