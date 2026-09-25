@@ -29,17 +29,19 @@
 #endif
 
 /* MAX_PRIME_EVEN is the least power of 2 that is larger than MAX_PRIME */
+/* NUM_PRIMES odd primes up to MAX_PRIME are in the table; the primes up
+   to MAX_TABLE_PRIME can get a sieve table (p*p*(p+1) words) for the
+   first two stages, the larger ones serve the third stage, per bit */
 #if (DEBUG > 0)
 # define NUM_PRIMES 5
 # define MAX_PRIME 13
 # define MAX_PRIME_EVEN 16
+# define MAX_TABLE_PRIME 13
 #else
-// # define NUM_PRIMES 17
-// # define MAX_PRIME 61
-// # define MAX_PRIME_EVEN 64
-# define NUM_PRIMES 30
-# define MAX_PRIME 127
-# define MAX_PRIME_EVEN 128
+# define NUM_PRIMES 53
+# define MAX_PRIME 251
+# define MAX_PRIME_EVEN 256
+# define MAX_TABLE_PRIME 127
 #endif /* DEBUG > 0 */
 
 #define FLOOR(a,b) (((a) < 0) ? -(1 + (-(a)-1) / (b)) : (a) / (b))
@@ -66,12 +68,20 @@ extern int one_point;        /* A flag saying if one point is enough */
 extern long sieve_primes1;
    /* The number of primes used for the first sieving stage */
 extern long sieve_primes2;
-   /* The number of primes used for both sieving stages */
+   /* The number of primes used for the first two sieving stages */
+extern long sieve_primes3;
+   /* The number of primes used for all three sieving stages */
 extern bit_array *sieve_tab[NUM_PRIMES];
    /* The sieve table of each sieving prime, see j-points.c */
+extern long inverses[NUM_PRIMES][MAX_PRIME_EVEN];
+extern unsigned char has_infinity[NUM_PRIMES];
+extern unsigned char is_f_square[NUM_PRIMES][MAX_PRIME_EVEN];
+extern unsigned char is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
+   /* The tables of the third stage, see j-points.c */
 
 extern long num_surv1;   /* Used to count the survivors of the first stage */
 extern long num_surv2;   /* Used to count the survivors of the second stage */
+extern long num_surv3;   /* Used to count the survivors of the third stage */
 extern bit_array *survivors; /* In this array the sieving takes place */
 extern long height;          /* The height bound */
 extern long array_size;      /* The size of the survivors array (in longs) */
