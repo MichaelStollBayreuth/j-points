@@ -84,10 +84,12 @@ int is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
 /* is_point_on_j[pn][x][y] = 1 if there are points on J mod prime[pn]
    with first three coordinates on the Kummer surface (1,x,y), 0 if not */
 
-bit_array sieve[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
-/* bit k of sieve[pn][a1][b1][c1] = 0
-   iff (a,b,c) is excluded mod p = prime[pnn[pn]],
-   when  c = c1*LONG_LENGTH + k mod p, b = b1 mod p and a = a1 mod p. */
+bit_array *sieve_tab[NUM_PRIMES];
+/* The sieve table of the pn-th sieving prime p = prime[pnn[pn]], allocated
+   by init_sieve: p*p rows of p+1 words, the row of (a1, b1) starting at
+   index (a1*p + b1)*(p+1).  Bit k of word c1 of that row is 0 iff (a,b,c)
+   is excluded mod p when a = a1, b = b1 and c = c1*LONG_LENGTH + k mod p.
+   The row is periodic in c1 with period p; its word p repeats its word 0. */
 
 MP_INT coeffs[7];  /* The coefficients of f */
 MP_INT bc[7]; /* A helper array */
@@ -493,7 +495,7 @@ void init_fmodpsquare(void)
    LONG_LENGTH. */
 bit_array help[MAX_PRIME][MAX_PRIME_EVEN][MAX_PRIME / LONG_LENGTH + 2];
 
-/* initalise sieve[][][][] */
+/* allocate and initalise the sieve tables */
 void init_sieve(void)
 {
   long a, b, c, i, pn, p, aa, ab, k, n, kp;
@@ -507,6 +509,8 @@ void init_sieve(void)
     p = prime[n];
     k = (LONG_LENGTH + p - 1)/p;
     kp = k*p;
+    sieve_tab[pn] = (bit_array *)malloc(p*p*(p+1)*sizeof(bit_array));
+    if(sieve_tab[pn] == NULL) { error(7); }
     /* determine which triples (a,b,c) are excluded mod p */
     aa = p>>LONG_SHIFT;
     if(aa == 0) aa = 1;
@@ -549,12 +553,12 @@ void init_sieve(void)
     } }
 #endif
 
-    /* fill the bit pattern from help[][][] into sieve[pn][][][].
-	sieve[pn][a][b][c0] has the same semantics as help[a][b][c0],
+    /* fill the bit pattern from help[][][] into the table of p.
+	Word c0 of the row of (a, b) has the same semantics as help[a][b][c0],
 	but here, c0 runs from 0 to p-1 and all bits are filled. */
     for(a = 0; a < p; a++)
       for(b = 0; b < p; b++)
-      { bit_array *si = sieve[pn][a][b];
+      { bit_array *si = &sieve_tab[pn][(a*p + b)*(p+1)];
         bit_array *he = help[a][b];
         long p1 = (LONG_LENGTH/p + 1) * p;
         long diff_shift = p1 & LONG_MASK;
@@ -562,7 +566,7 @@ void init_sieve(void)
         bit_array diff_mask = ~(bit_array)(-1L<<diff);
         long c1;
         long wp = p1>>LONG_SHIFT;
-        /* copy the first chunk from help[a][b][] into sieve[pn][a][b][] */
+        /* copy the first chunk from help[a][b][] into the row */
         for(c = 0; c < wp; c++) si[c] = he[c];
         /* now keep repeating the bit pattern, rotating it in help */
         for(c1 = c ; c < p; c++)
@@ -582,7 +586,7 @@ void init_sieve(void)
       for(b = 0; b < p; b++)
       { printf("  b = %3ld: ", b);
         for(c = 0; c < p; c++)
-	  printf(" %8.8lx", sieve[pn][a][b][c]);
+	  printf(" %8.8lx", sieve_tab[pn][(a*p + b)*(p+1) + c]);
         printf("\n");
     } }
 #endif
@@ -676,7 +680,7 @@ void find_points(void)
 
   /* initialise is_f_square[][] */
   init_fmodpsquare();
-  /* initalise sieve[][][][] */
+  /* allocate and initalise the sieve tables */
   init_sieve();
   if(sieve_primes2 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
