@@ -57,6 +57,7 @@ for b in blocks:
         b['why'] = 'no -q: a report or an error, not checked'; continue
     b['coeffs'] = coeffs; b['h'] = int(a[1])
     b['all'] = '-a' in opts; b['one'] = '-1' in opts
+    b['w'] = int(opts[opts.index('-w') + 1]) if '-w' in opts else None
     fmt = opts[opts.index('-f') + 1] if '-f' in opts else None
     pat = re.compile(r'\((-?\d+), (-?\d+), (-?\d+), (-?\d+)\)' if fmt is None
                      else re.escape(fmt).replace(r'%ld', r'(-?\d+)'))
@@ -113,10 +114,11 @@ def coords(s):
     return [int(x) for x in s[1:-1].split(', ')]
 
 unsieved = {}
-def unsieved_set(coeffs, h, allp):
-    key = (tuple(coeffs), h, allp)
+def unsieved_set(coeffs, h, allp, w=None):
+    key = (tuple(coeffs), h, allp, w)
     if key not in unsieved:
-        cmd = [JP, ' '.join(str(c) for c in coeffs), str(h), '-q', '-n', '0', '-N', '0'] + (['-a'] if allp else [])
+        cmd = ([JP, ' '.join(str(c) for c in coeffs), str(h), '-q', '-n', '0', '-N', '0']
+               + (['-a'] if allp else []) + (['-w', str(w)] if w is not None else []))
         out = subprocess.run(cmd, capture_output=True, text=True).stdout
         unsieved[key] = set(l.strip() for l in out.split('\n') if l.startswith('('))
     return unsieved[key]
@@ -128,10 +130,17 @@ for b in blocks:
         print('  --   %-70s %s' % (label, b['why'])); continue
     if b['how'] == 'Magma':
         want = results[magma_jobs[(tuple(b['coeffs']), b['h'])]]
+        # the brute force has every point above the triples up to h: the
+        # plain run wants all four coordinates within h, -w the first three
+        # within h and the fourth within its bound, -a everything (with -w,
+        # the fourth within its bound)
         if not b['all']:
-            want = set(s for s in want if max(abs(c) for c in coords(s)) <= b['h'])
+            want = set(s for s in want if max(abs(c) for c in coords(s)[:3]) <= b['h'])
+        dmax = b['w'] if b['w'] is not None else (None if b['all'] else b['h'])
+        if dmax is not None:
+            want = set(s for s in want if abs(coords(s)[3]) <= dmax)
     else:
-        want = unsieved_set(b['coeffs'], b['h'], b['all'])
+        want = unsieved_set(b['coeffs'], b['h'], b['all'], b['w'])
     if b['one']:
         ok = (b['nfound'] == min(1, len(want))) and b['found'] <= want
         what = '-1: %d printed, %d exist' % (b['nfound'], len(want))

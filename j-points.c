@@ -88,7 +88,11 @@ long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
 #define COST_CELL   320.0  /* a cell of the tube's analysis */
 #define COST_TWORD   12.0  /* a word the tube leaves, besides its tests */
 #define COST_TTEST    4.0  /* one test of such a word (no early exit) */
-#define COST_TROW    45.0  /* a row in the tube: the set-up */
+#define COST_TROW    45.0  /* a row with words in the tube: the set-up */
+#define COST_RROW   110.0  /* a row's real region (row_region) */
+#define COST_RCUT    60.0  /* the cut of a row's tube words to it (row_cut) */
+#define COST_RANGE   40.0  /* a range of words of the region, besides its passes */
+#define COST_PASS    15.0  /* one pass over such a range, besides its words */
 #define COST_TABLE   13.0  /* one word of a sieve table at set-up */
 #define COST_INIT   110.0  /* one class (1, b, c) of the exact table of a
                               prime whose rate was sampled, at set-up */
@@ -131,17 +135,30 @@ MP_INT k400, k310, k301, k220, k211, k202, k130, k121, k112, k103,
 _Thread_local MP_INT x12, x22, x32;
 _Thread_local MP_INT kummer[3];
 
-/* The tube (see j-sift.c): the coefficients of the Kummer equation and
-   of f as doubles, for the bounds per row, and whether the tube is used
-   (plain runs: the bound on the fourth coordinate cuts the box to a
-   tube around the plane section d = 0 of the Kummer surface; -a has no
-   such bound, and the unsieved run must not use it) */
+/* The analysis of the plane of (b, c) (see j-sift.c): the coefficients
+   of the Kummer equation and of f as doubles, for the bounds per cell,
+   and how the rows are sieved: the box (every word of every row), the
+   tube (the words the analysis leaves, one by one: a plain run's thin
+   tube) or the region (the passes of the box over the ranges of words
+   the analysis leaves: the real region of -a); the unsieved run must
+   not use the analysis */
 double kd400, kd310, kd301, kd220, kd211, kd202, kd130, kd121, kd112,
        kd103, kd040, kd031, kd022, kd013, kd004;
 double fd[7];
-int tube_mode = 0;
-double tube_words = 0.0;   /* words per row the tube leaves, sampled */
-double tube_cells = 0.0;   /* cells per row its analysis visits, sampled */
+int sieve_mode = 0;
+int tube_cut = 0;          /* the tube's words cut to the real region */
+/* sampled: the words per row the tube leaves, as they are and cut to
+   the real region, the cells it visits per row and the fraction of the
+   rows with a word; the words per row of the real region, in how many
+   ranges, and the fraction of the rows that meet it */
+double tube_words = 0.0, tube_words_cut = 0.0, tube_cells = 0.0, tube_rows = 1.0;
+double reg_words = 0.0, reg_ranges = 0.0, reg_rows = 1.0;
+/* The real roots of f, for condition (3) of the analysis: the open
+   intervals on which f is negative, each given grown by the isolating
+   intervals of the roots at its ends (f may be negative there) and
+   shrunk by them (f is negative there for sure); see real_roots_init */
+long num_neg = 0;
+double neg_grown_lo[8], neg_grown_hi[8], neg_shrunk_lo[8], neg_shrunk_hi[8];
 
 /* The condition at 2 (see twoadic_init): per class of (a, b) mod 64 the
    word of the admitted c mod 64, the fill of the bit array of a row, and
@@ -222,6 +239,7 @@ void choose_primes(void);
 void init_sieve(void);
 void kummer_init(void);
 void tube_init(void);
+static void real_roots_init(void);
 void twoadic_init(void);
 static inline int relprime(long, long);
 int check_one_point_final(long, long, long, MP_INT *, MP_INT *);
@@ -742,38 +760,46 @@ static int compare_cands(const void *a, const void *b)
    cycle of the tests on the words the first stage leaves); the third
    stage the best n3 - n2 of all primes left, by their value for it.
    The numbers minimise the modelled cost. */
-static double choose_primes_mode(int tube);
+static double choose_primes_mode(int mode, int cut);
 
-/* the two ways of a plain run priced, the cheaper taken (the tube
-   itself, and the cost of a row of the box, are not among the terms
-   that the choice of the primes sees, so they are added here) */
+/* the ways of a run priced, the cheapest taken with its primes: the box,
+   the region, and for a run with a bound on the fourth coordinate the
+   tube, with or without the cut of its words to the real region (the
+   analysis, the cost of a row and of a range are not among the terms
+   that the choice of the primes sees, so they are added there) */
 void choose_primes(void)
 {
-  double box, tube;
   long pin1 = sieve_primes1, pin2 = sieve_primes2, pin3 = sieve_primes3;
-  long p1, p2, p3, pn[NUM_PRIMES], n;
-  box = choose_primes_mode(0);
-  if(all_points) { return; }
-  /* the box's choice kept aside, the pins restored for the tube's */
-  p1 = sieve_primes1; p2 = sieve_primes2; p3 = sieve_primes3;
-  for(n = 0; n < p3; n++) { pn[n] = pnn[n]; }
-  sieve_primes1 = pin1; sieve_primes2 = pin2; sieve_primes3 = pin3;
-  tube = choose_primes_mode(1);
-  if(tube < box) { tube_mode = 1; return; }
-  sieve_primes1 = p1; sieve_primes2 = p2; sieve_primes3 = p3;
-  for(n = 0; n < p3; n++) { pnn[n] = pn[n]; }
+  long b1 = 0, b2 = 0, b3 = 0, pn[NUM_PRIMES], n, k;
+  int modes[4] = {0, 2, 1, 1}, cuts[4] = {0, 0, 0, 1}, nmodes = dbounded ? 4 : 2;
+  double best = -1.0;
+  for(k = 0; k < nmodes; k++)
+  { double cost;
+    sieve_primes1 = pin1; sieve_primes2 = pin2; sieve_primes3 = pin3;
+    cost = choose_primes_mode(modes[k], cuts[k]);
+    if(best < 0.0 || cost < best)
+    { best = cost; sieve_mode = modes[k]; tube_cut = cuts[k];
+      b1 = sieve_primes1; b2 = sieve_primes2; b3 = sieve_primes3;
+      for(n = 0; n < b3; n++) { pn[n] = pnn[n]; }
+    }
+  }
+  sieve_primes1 = b1; sieve_primes2 = b2; sieve_primes3 = b3;
+  for(n = 0; n < b3; n++) { pnn[n] = pn[n]; }
   return;
 }
 
-static double choose_primes_mode(int tube)
+static double choose_primes_mode(int mode, int cut)
 {
+  int tube = (mode == 1);
   long ne = 0, n, n1, n2, n3, k;
   cand list1[NUM_PRIMES], list2[NUM_PRIMES], list3[NUM_PRIMES];
   long best1[NUM_PRIMES], best2[NUM_PRIMES], best3[NUM_PRIMES];
   double W = (double)(2*(height>>LONG_SHIFT) + 2);  /* words per row */
-  double rows = (double)(height + 1) * (double)(2*height + 1);
+  double rows = (double)(2*height + 1)   /* the rows: only the square a of a monic quintic */
+                * ((degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
+                   ? floor(sqrt((double)height)) + 1.0 : (double)(height + 1));
   double bits;                                      /* bits per row */
-  double best = -1.0, fixed;
+  double best = -1.0, fixed, passx = 0.0;   /* per row; passx per pass */
   long b1 = 0, b2 = 0, b3 = 0;
   long n1lo, n1hi, pin1 = sieve_primes1;
   double logr[NUM_PRIMES], tabcost[NUM_PRIMES], initcost[NUM_PRIMES];
@@ -781,11 +807,20 @@ static double choose_primes_mode(int tube)
 
   /* in the tube there is no first stage: the words the tube leaves are
      tested one by one, like the survivors of a first stage but without
-     an early exit; the cost of the analysis and of a row are fixed */
+     an early exit; the cost of the analysis and of a row are fixed.  In
+     the region the passes run over the words left, range by range, with
+     the row's cost for the rows that meet it. */
   if(tube)
-  { W = (tube_words > 0.01) ? tube_words : 0.01;
+  { W = cut ? tube_words_cut : tube_words;
+    if(W < 0.01) { W = 0.01; }
     pin1 = 0;
-    fixed = tube_cells * COST_CELL + COST_TROW + W * COST_TWORD;
+    fixed = tube_cells * COST_CELL + tube_rows * (COST_TROW + (cut ? COST_RROW + COST_RCUT : 0.0))
+            + W * COST_TWORD;
+  }
+  else if(mode == 2)
+  { W = (reg_words > 0.01) ? reg_words : 0.01;
+    fixed = COST_RROW + reg_rows * COST_ROW + reg_ranges * COST_RANGE;
+    passx = reg_ranges * COST_PASS;
   }
   else
   { fixed = COST_ROW; }
@@ -804,7 +839,7 @@ static double choose_primes_mode(int tube)
   { if(prec[n].p <= MAX_TABLE_PRIME)
     { list1[ne].n = n;
       list1[ne].v = logr[n] / (W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE)
-                               + (tabcost[n] + initcost[n]) / rows);
+                               + passx + (tabcost[n] + initcost[n]) / rows);
       ne++;
     }
   }
@@ -822,7 +857,7 @@ static double choose_primes_mode(int tube)
     for(k = 0; k < n1; k++)
     { n = list1[k].n;
       used[n] = 1;
-      cost1 += W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE);
+      cost1 += W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE) + passx;
       setup1 += tabcost[n] + initcost[n];
       rho1 *= prec[n].r;
     }
@@ -1127,7 +1162,7 @@ void find_points(void)
   init_sieve();
   if(sieve_primes3 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
-  if(sieve_primes3 == 0) { tube_mode = 0; use2 = 0; }
+  if(sieve_primes3 == 0) { sieve_mode = 0; use2 = 0; }
   /* the bit array and the tables of the chunks */
   init_sift();
   /* deal with (0, 0, c, d) */
@@ -1160,7 +1195,7 @@ static long unit_a(long k)
 static int run_a(long a)
 {
   long m = row_step(a), b0 = (a == 0) ? m : -(height/m)*m, b;
-  if(tube_mode) { return(sift_tube(a, b0, m)); }
+  if(sieve_mode) { return(sift_bands(a, b0, m)); }
   for(b = b0; b <= height; b += m)
   {
 #ifdef VERBOSE
@@ -1284,9 +1319,10 @@ void kummer_init()
   mpz_mul_ui(&tmp, &tmp, 4); mpz_sub(&k004, &k004, &tmp);
 }
 
-/* the coefficients as doubles for the tube, and whether it is used; the
-   words per row it leaves are sampled over a few hundred rows spread
-   over the box (deterministically), for the cost model */
+/* the coefficients as doubles for the analysis of the plane of (b, c);
+   what it leaves per row is sampled over a few hundred rows spread over
+   the box (deterministically), for the cost model, which then chooses
+   the way to sieve */
 void tube_init(void)
 {
   long n;
@@ -1299,9 +1335,161 @@ void tube_init(void)
   kd022 = mpz_get_d(&k022); kd013 = mpz_get_d(&k013);
   kd004 = mpz_get_d(&k004);
   for(n = 0; n <= 6; n++) { fd[n] = mpz_get_d(&coeffs[n]); }
-  /* a plain run may use the tube; choose_primes decides */
-  tube_mode = 0;
-  if(!all_points) { tube_sample(&tube_words, &tube_cells); }
+  sieve_mode = 0;
+  real_roots_init();
+  tube_sample(&tube_words, &tube_words_cut, &tube_cells, &tube_rows, &reg_words, &reg_ranges, &reg_rows);
+  return;
+}
+
+/* The real roots of f by Sturm's theorem in exact arithmetic: with the
+   chain p0 = f, p1 = f', p_i = -(p_{i-2} mod p_{i-1}) over Q, the
+   number of roots in (x, y] is the number of sign changes of the chain
+   at x less that at y (zeros skipped; the roots are simple, f being
+   squarefree).  The roots are isolated by bisection of [-B, B], B the
+   Cauchy bound, and each isolating interval is bisected on to a relative
+   width of 2^-40; between consecutive roots f has one sign, alternating
+   from the sign at +infinity.  The negative intervals go to the arrays
+   above, their ends rounded outwards (grown) or inwards (shrunk). */
+static mpq_t sturm[7][7];      /* the chain, sturm[i][k] the coefficient of x^k of p_i */
+static long sturm_deg[7], sturm_len;
+static mpq_t root_lo[6], root_hi[6];   /* the isolating intervals, in order */
+static long num_roots;
+
+static long sturm_changes(mpq_t x)
+{
+  mpq_t v, t;
+  long i, k, changes = 0;
+  int last = 0;
+  mpq_init(v); mpq_init(t);
+  for(i = 0; i < sturm_len; i++)
+  { int s;
+    mpq_set(v, sturm[i][sturm_deg[i]]);
+    for(k = sturm_deg[i] - 1; k >= 0; k--)
+    { mpq_mul(v, v, x); mpq_add(v, v, sturm[i][k]); }
+    s = mpq_sgn(v);
+    if(s != 0)
+    { if(last != 0 && s != last) { changes++; }
+      last = s;
+    }
+  }
+  mpq_clear(v); mpq_clear(t);
+  return(changes);
+}
+
+/* the roots in (lo, hi], nlo - nhi of them, isolated and refined */
+static void sturm_isolate(mpq_t lo, mpq_t hi, long nlo, long nhi)
+{
+  mpq_t mid;
+  long nmid;
+  if(nlo == nhi) { return; }
+  mpq_init(mid);
+  if(nlo - nhi == 1)
+  { /* one root: bisect to a relative width of 2^-40 */
+    mpq_t w;
+    mpq_init(w);
+    for(;;)
+    { double d = mpq_get_d(hi) - mpq_get_d(lo), s = fabs(mpq_get_d(lo)) + fabs(mpq_get_d(hi));
+      if(d <= 0.5*ldexp(1.0, -40)*(s + 1.0)) { break; }
+      mpq_add(mid, lo, hi); mpq_div_2exp(mid, mid, 1);
+      nmid = sturm_changes(mid);
+      if(nlo - nmid == 1) { mpq_set(hi, mid); nhi = nmid; }
+      else { mpq_set(lo, mid); nlo = nmid; }
+    }
+    mpq_clear(w);
+    if(num_roots < 6)
+    { mpq_set(root_lo[num_roots], lo); mpq_set(root_hi[num_roots], hi); num_roots++; }
+    mpq_clear(mid);
+    return;
+  }
+  mpq_add(mid, lo, hi); mpq_div_2exp(mid, mid, 1);
+  nmid = sturm_changes(mid);
+  { mpq_t l2, h2;
+    mpq_init(l2); mpq_init(h2);
+    mpq_set(l2, lo); mpq_set(h2, mid);
+    sturm_isolate(l2, h2, nlo, nmid);
+    mpq_set(l2, mid); mpq_set(h2, hi);
+    sturm_isolate(l2, h2, nmid, nhi);
+    mpq_clear(l2); mpq_clear(h2);
+  }
+  mpq_clear(mid);
+  return;
+}
+
+static void real_roots_init(void)
+{
+  mpq_t q, lo, hi;
+  long i, k, sgn_inf, nlo, nhi;
+  double B = 0.0;
+  for(i = 0; i < 7; i++) { for(k = 0; k < 7; k++) { mpq_init(sturm[i][k]); } }
+  for(i = 0; i < 6; i++) { mpq_init(root_lo[i]); mpq_init(root_hi[i]); }
+  mpq_init(q); mpq_init(lo); mpq_init(hi);
+  /* p0 = f, p1 = f' */
+  for(k = 0; k <= degree; k++) { mpq_set_z(sturm[0][k], &coeffs[k]); }
+  sturm_deg[0] = degree;
+  for(k = 1; k <= degree; k++)
+  { mpq_set_z(sturm[1][k-1], &coeffs[k]); mpq_set_ui(q, (unsigned long)k, 1);
+    mpq_mul(sturm[1][k-1], sturm[1][k-1], q);
+  }
+  sturm_deg[1] = degree - 1;
+  sturm_len = 2;
+  /* p_i = -(p_{i-2} mod p_{i-1}) */
+  while(sturm_deg[sturm_len-1] > 0)
+  { long i0 = sturm_len - 2, i1 = sturm_len - 1, i2 = sturm_len, d;
+    for(k = 0; k < 7; k++) { mpq_set(sturm[i2][k], sturm[i0][k]); }
+    d = sturm_deg[i0];
+    while(d >= sturm_deg[i1])
+    { mpq_div(q, sturm[i2][d], sturm[i1][sturm_deg[i1]]);
+      for(k = 0; k <= sturm_deg[i1]; k++)
+      { mpq_t t;
+        mpq_init(t);
+        mpq_mul(t, q, sturm[i1][k]);
+        mpq_sub(sturm[i2][k + d - sturm_deg[i1]], sturm[i2][k + d - sturm_deg[i1]], t);
+        mpq_clear(t);
+      }
+      d--;
+      while(d >= 0 && mpq_sgn(sturm[i2][d]) == 0) { d--; }
+    }
+    if(d < 0) { break; }   /* the remainder is 0 */
+    for(k = 0; k <= d; k++) { mpq_neg(sturm[i2][k], sturm[i2][k]); }
+    sturm_deg[i2] = d;
+    sturm_len++;
+  }
+  /* the Cauchy bound: every root is below 1 + max |f_k / f_d| */
+  for(k = 0; k < degree; k++)
+  { double r = fabs(mpz_get_d(&coeffs[k]) / mpz_get_d(&coeffs[degree]));
+    if(r > B) { B = r; }
+  }
+  B = ceil(B) + 2.0;
+  mpq_set_d(lo, -B); mpq_set_d(hi, B);
+  nlo = sturm_changes(lo); nhi = sturm_changes(hi);
+  num_roots = 0;
+  sturm_isolate(lo, hi, nlo, nhi);
+  /* the sign of f beyond the last root, and on each interval down from
+     there, alternating; a negative interval is recorded */
+  sgn_inf = mpz_sgn(&coeffs[degree]);
+  num_neg = 0;
+  for(i = num_roots; i >= 0; i--)
+  { long s = ((num_roots - i) % 2 == 0) ? sgn_inf : -sgn_inf;   /* on (root i-1, root i) */
+    if(s < 0)
+    { double glo, ghi, slo, shi;
+      if(i == 0) { glo = slo = -HUGE_VAL; }
+      else
+      { glo = nextafter(mpq_get_d(root_lo[i-1]), -HUGE_VAL);
+        shi = 0.0; slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL);
+      }
+      if(i == num_roots) { ghi = shi = HUGE_VAL; }
+      else
+      { ghi = nextafter(mpq_get_d(root_hi[i]), HUGE_VAL);
+        shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL);
+      }
+      neg_grown_lo[num_neg] = glo; neg_grown_hi[num_neg] = ghi;
+      neg_shrunk_lo[num_neg] = slo; neg_shrunk_hi[num_neg] = shi;
+      num_neg++;
+    }
+  }
+  mpq_clear(q); mpq_clear(lo); mpq_clear(hi);
+  for(i = 0; i < 7; i++) { for(k = 0; k < 7; k++) { mpq_clear(sturm[i][k]); } }
+  for(i = 0; i < 6; i++) { mpq_clear(root_lo[i]); mpq_clear(root_hi[i]); }
   return;
 }
 
@@ -1953,10 +2141,16 @@ void message(long n, long total)
     case 1: printf("\nprob = 0, hence no solutions.\n"); break;
     case 2: printf("\nFound %ld rational points on K lifting to J.\n", tot_points);
             break;
-    case 4: if(tube_mode)
-            { printf("Sieving in the tube of the bound on the fourth coordinate:\n");
+    case 4: if(sieve_mode == 1)
+            { printf("Sieving in the tube of the bound on the fourth coordinate%s:\n",
+                     tube_cut ? ", cut to the real region" : "");
               printf("about %.2f words per row, %.2f cells of the analysis per row.\n",
-                     tube_words, tube_cells);
+                     tube_cut ? tube_words_cut : tube_words, tube_cells);
+            }
+            if(sieve_mode == 2)
+            { printf("Sieving the real region by passes over its ranges of words:\n");
+              printf("about %.2f words per row in %.2f ranges, %.3f of the rows.\n",
+                     reg_words, reg_ranges, reg_rows);
             }
             if(use2)
             { printf("The condition at 2 admits %.3f of the classes mod 64 and empties %.3f of the rows.\n",

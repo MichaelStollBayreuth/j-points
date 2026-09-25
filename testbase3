@@ -792,16 +792,16 @@ about 3.87 words per row, 0.12 cells of the analysis per row.
 9 primes used for all three stages together.
 Sieving primes:
  First stage: 
- Second stage: 13, 11, 23, 5, 17, 29
+ Second stage: 5, 13, 11, 7, 17, 23
  Third stage: 37, 53, 59
-Probabilities: Min(163) = 0.336737, Cut2(29) = 0.423675, Cut3(59) = 0.391700, Max(3) = 0.777778
+Probabilities: Min(163) = 0.336737, Cut2(23) = 0.370757, Cut3(59) = 0.391700, Max(3) = 0.777778
 
 (0, 0, 4, -11)
 (0, 1, 0, 0)
 
 7787 candidates survived the first stage,
-2239 candidates survived the second stage,
-111 candidates survived the third stage.
+3245 candidates survived the second stage,
+153 candidates survived the third stage.
 
 Found 2 rational points on K lifting to J.
 # <0 -1 2 -1 3 1 1> <60> <-q> <-a>

@@ -155,6 +155,17 @@ There are a number of improvements to this basic scheme.
    height bound (from 1.3x to 14x at 2000 on the test curves, 4.5x to 20x
    at 10000); a cost model decides between the tube and the sieve of whole
    rows, which stays better where the tube is fat.
+   Independently of any bound, a point needs f to be nonnegative at the
+   Mumford roots x, u of a t^2 - b t + c when they are real (the two points
+   of the divisor are real then; when they are complex there is nothing to
+   ask, and a real fourth coordinate exists in any case). Along a row
+   (a, b), x falls and u rises as c grows, so each interval where f is
+   negative (between consecutive real roots of f, isolated once by Sturm's
+   theorem in exact arithmetic) excludes one interval of c on each branch,
+   in closed form. This real region is half to nine tenths of the box: an
+   `-a` run sieves only the ranges of words of a row that lie in it, by the
+   passes of the whole-row sieve, and a plain run cuts the tube's words to
+   it, each where the cost model finds it worth the small cost per row.
 6. The prime 2 contributes through a table modulo 64: a point's integer
    coordinates satisfy the Kummer equation, and the quantity A^2 of the
    lifting test is a square, so a class of (a, b, c) modulo 64 must admit
@@ -261,6 +272,16 @@ sieve together.
     at most h can exist (see "How the program works"); rigorous bounds, so
     the points are the same. 1.3x to 14x at 2000 on the test curves, more
     at larger height bounds; nothing for `-a`.
+  + The real region: f must be nonnegative at the real Mumford roots of
+    a t^2 - b t + c, which excludes intervals of c from a row in closed form
+    (see "How the program works"). An `-a` run sieves only the words of a
+    row inside the region, a plain run cuts the tube's words to it, where
+    the cost model finds it worth it; the model also counts the rows of a
+    monic quintic correctly (only the square first coordinates), which
+    improves its choice of primes there. 1.2x to 1.4x on `-a` runs of
+    curves on which f is negative on a good part of the line (c1 at 2000
+    and 4000, c3 at 4000), nothing on the record curve (f > 0 nearly
+    everywhere); 1.1x to 1.25x on plain runs of such curves.
   + The passes of the sieve over the bit array can be built with vectors of
     two or four words (`make VECTOR=sse2` or `avx2`), behind a compile-time
     switch: 1.2x on `-a` runs with AVX2 on a recent laptop; SSE2 gave 1.1x
@@ -282,7 +303,7 @@ sieve together.
     the search runs over sqrt(h) values of it instead of h. The Kummer
     coordinates go to (c : b : a : d) and (a : -b : c : d), which keeps the
     height, so the points of the curve given are exactly those found,
-    transformed back. 17x on such a curve at 2000.
+    transformed back. 13x to 18x on such curves at 2000, 26x at 4000.
   + The polynomial is checked to be squarefree. The escapes `\n`, `\t` and
     `\\` in the format of `-f` are interpreted. `-w bound4` bounds the
     fourth coordinate separately from the first three, which gives the

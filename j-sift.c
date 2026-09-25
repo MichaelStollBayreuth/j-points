@@ -80,7 +80,7 @@ static long num_chunks;
 
 static long npr;    /* the number of sieving primes, all stages */
 static unsigned short *res0;
-/* res0[k*npr + n] = k mod pr[n] for 0 <= k < array_size: with the residue
+/* res0[k*npr + n] = k mod pr[n] for 0 <= k <= array_size: with the residue
    of the chunk's first word, the residue of any word of the chunk costs an
    addition and a comparison instead of a division */
 
@@ -112,11 +112,12 @@ static long period[NUM_PRIMES];      /* the period of the walk, see above */
 static _Thread_local bit_array *rowptr[NUM_PRIMES];
 static long w_low_all, w_high_all;   /* the words of a whole row */
 static double th, th2;               /* the bound on the fourth coordinate and its square */
+static double invp[NUM_PRIMES];     /* 1/p, for the parts of a walk over a range */
 
 /* the tube's bands (see there): the words collected for the rows of the
    band a thread analyses, per row up to TUBE_RANGES ranges [lo, hi) */
 #define TUBE_BAND 4096    /* rows analysed and then sieved together */
-#define TUBE_RANGES 8     /* word ranges kept per row; more are merged */
+#define TUBE_RANGES 24    /* word ranges of the tube kept per row; more are merged */
 static _Thread_local long band_b0;                /* the first row */
 static _Thread_local long *band_nr = NULL;        /* ranges per row */
 static _Thread_local long (*band_lo)[TUBE_RANGES], (*band_hi)[TUBE_RANGES];
@@ -153,7 +154,7 @@ void init_sift(void)
   chunks = (chunk_spec *)malloc(num_chunks*sizeof(chunk_spec));
   walk = (walk_spec *)malloc((num_chunks*np1 + 1)*sizeof(walk_spec));
   res = (long *)malloc((num_chunks*npr + 1)*sizeof(long));
-  res0 = (unsigned short *)malloc((array_size*npr + 1)*sizeof(unsigned short));
+  res0 = (unsigned short *)malloc(((array_size + 1)*npr + 1)*sizeof(unsigned short));
   if(chunks == NULL || walk == NULL || res == NULL || res0 == NULL)
   { error(7); }
   for(k = 0; k < num_chunks; k++)
@@ -193,7 +194,8 @@ void init_sift(void)
   }
   for(n = 0; n < npr; n++)
   { long p = pr[n];
-    for(k = 0; k < array_size; k++) { res0[k*npr + n] = k % p; }
+    for(k = 0; k <= array_size; k++) { res0[k*npr + n] = k % p; }
+    invp[n] = 1.0 / (double)p;
   }
   return;
 }
@@ -369,52 +371,72 @@ static inline int check_point(bit_array nums, long a, long b, long i,
 
 
 /**************************************************************************
- * The tube                                                               *
+ * The analysis of the plane of (b, c): the tube and the real region      *
  **************************************************************************/
 
-/* A plain run bounds the fourth coordinate d as well, and d is a root of
-   Q(d) = k2 d^2 + k1 d + k0, so a point of height at most h needs a root
-   of Q in [-h, h]: either Q(h) and Q(-h) differ in sign (or one is 0),
-   or both roots lie inside, which needs |k1| <= 2 h |k2| and Q(h), Q(-h)
-   on the side of k2.  This holds only in a thin tube around the plane
-   section d = 0 of the Kummer surface (or near the origin): at h = 2000
-   on a few of the 63 words of a row, in many rows on none.  (The weaker
-   |k0| <= h |k1| + h^2 |k2| is far from thin when h^2 k2 is the large
-   term, as on curves of degree 5.)
+/* For a fixed first coordinate a, the third coordinates c of a row (a, b)
+   that can carry a point are limited by two conditions.
 
-   So the rows are not sieved by passes over a bit array.  For each a,
-   the plane of (b, c) is cut into cells of rows times words, and a cell
-   is dropped when the bounds show that no d in [-h, h] exists anywhere
-   in it: Q(h), Q(-h), k1, k2 are polynomials in (b, c), and with the
-   Taylor expansion sum p_jk s^j t^k at the centre (bm, cm), |s| <= rb,
-   |t| <= rc, the value keeps the sign of p_00 throughout when |p_00| >
-   sum' |p_jk| rb^j rc^k; the rounding errors of the coefficients, which
-   may cancel, are covered by TUBE_EPS times the absolute polynomial at
-   (|bm| + rb, |cm| + rc), so that no word that can hold a point is
-   lost.  A cell that survives is halved, in rows or in words, until it
-   is at most TUBE_ROWS rows by one word; that word is then collected
-   for each of the rows.  The rows of a band are then sieved in order:
-   each collected word tested against all the table primes, one by one,
-   and its surviving bits against the third stage and the exact check. */
+   The real region: for a > 0, when the Mumford roots x, u of a t^2 - b t
+   + c are real (k2 = b^2 - 4 a c > 0; k2 = 0 is the double points, found
+   elsewhere), the two points of the divisor are real, so f(x) >= 0 and
+   f(u) >= 0 (for a = 0 the one point is (c/b, y), so f(c/b) >= 0); when
+   they are complex there is nothing to ask, and a real fourth coordinate
+   exists in any case.  The real roots of f are isolated once (see
+   j-points.c), and x = (b + sqrt(k2)) / (2 a) and u = (b - sqrt(k2)) /
+   (2 a) must avoid the intervals where f is negative.  Along a row,
+   x runs down from infinity to b / (2 a) and u up from minus infinity to
+   it as c grows, so each such interval excludes at most one interval of
+   c on each branch, c = b x - a x^2 at its ends: row_region computes the
+   words of the row that remain, some tens of operations, no cells.
+   This cuts the box of an -a run to half or nine tenths.
 
-#define TUBE_EPS 1.5e-5   /* 15 coefficients, each with a margin of 1e-6 */
+   The tube: when the fourth coordinate d is bounded by W (a plain run:
+   W = h; -w: W as given; not with -a), a root of Q(d) = k2 d^2 + k1 d +
+   k0 lies in [-W, W]: either Q(W) and Q(-W) differ in sign (or one is
+   0), or both roots lie inside, which needs |k1| <= 2 W |k2| and Q(W),
+   Q(-W) on the side of k2.  For W = h this holds only in a thin tube
+   around the plane section d = 0 of the Kummer surface (or near the
+   origin): at h = 2000 on a few of the 63 words of a row, in many rows
+   on none.  So the plane of (b, c) is cut into cells of rows times
+   words, and a cell is dropped when the bounds show that the condition
+   fails everywhere in it, or taken whole when they show that it holds
+   everywhere: Q(W), Q(-W), k1, k2 are polynomials in (b, c), and with
+   the Taylor expansion sum p_jk s^j t^k at the centre (bm, cm), |s| <=
+   rb, |t| <= rc, the value keeps the sign of p_00 throughout when
+   |p_00| > sum' |p_jk| rb^j rc^k; the rounding errors of the
+   coefficients, which may cancel, are covered by TUBE_EPS times the
+   absolute polynomial at (|bm| + rb, |cm| + rc), so that no word that
+   can hold a point is lost.  An undecided cell is halved, in rows or in
+   words, until it is at most TUBE_ROWS rows by one word; that word is
+   then collected for each of its rows, as the words of a cell taken
+   whole are.
+
+   The rows of a band are then sieved in order, in one of two ways (the
+   model chooses, see choose_primes): the tube -- the words of the cells,
+   cut to the real region, each tested against all the table primes one
+   by one, and its surviving bits against the third stage and the exact
+   check -- or the region -- the passes of the box sieve run over the
+   ranges of words of the real region. */
+
+#define TUBE_EPS 1.5e-5   /* each coefficient with a margin of 1e-6 */
 #define TUBE_ROWS 64      /* rows of a leaf cell (16 to 128 measured much the same) */
+#define L 5               /* the row length of a coefficient array (degree at most 4) */
+#define NC (L*L)
+#define P(j, k) [L*(j) + (k)]   /* the coefficient of b^j c^k (or s^j t^k) */
 
-/* for the current a, as polynomials in (b, c) with P[j][k] the coefficient
-   of b^j c^k: k0 (degree 4), k1 (3), k2 (2), and the absolute values of
-   the coefficients of |k0| + h |k1| + h^2 |k2|, the scale of the errors */
-static _Thread_local double K0[25], K1[25], K2[25], KA[25];
+/* for the current a, as polynomials in (b, c): k0 (degree 4), k1 (3) and
+   k2 (2), and the absolute values of the coefficients of |k0| + W |k1| +
+   W^2 |k2|, the scale of the errors */
+static _Thread_local double K0[NC], K1[NC], K2[NC], KA[NC];
 static _Thread_local long tube_a;   /* the current a */
-
-static int tube_counting;            /* count the words only (before the threads) */
-static long tube_n, tube_ncells;
+static long tube_ncells;
 
 static void tube_a_init(long a)
 {
   double A = (double)a, A2 = A*A, A3 = A2*A, A4 = A3*A;
   long i;
-  for(i = 0; i < 25; i++) { K0[i] = 0.0; K1[i] = 0.0; K2[i] = 0.0; }
-#define P(j, k) [5*(j) + (k)]
+  for(i = 0; i < NC; i++) { K0[i] = 0.0; K1[i] = 0.0; K2[i] = 0.0; }
   K0 P(0,0) = kd400*A4;
   K0 P(1,0) = kd310*A3; K0 P(0,1) = kd301*A3;
   K0 P(2,0) = kd220*A2; K0 P(1,1) = kd211*A2; K0 P(0,2) = kd202*A2;
@@ -426,11 +448,92 @@ static void tube_a_init(long a)
   K1 P(1,1) = -2.0*A*fd[3];  K1 P(0,2) = -4.0*A*fd[4];  K1 P(1,2) = -2.0*fd[5];
   K1 P(0,3) = -4.0*fd[6];
   K2 P(2,0) = 1.0; K2 P(0,1) = -4.0*A;
-#undef P
-  for(i = 0; i < 25; i++)
+  for(i = 0; i < NC; i++)
   { KA[i] = fabs(K0[i]) + th*fabs(K1[i]) + th2*fabs(K2[i]); }
   tube_a = a;
   return;
+}
+
+/* The real region of the row (a, b): the ranges of words [lo[i], hi[i])
+   of c that it meets, in order, their number returned.  On the branch
+   x >= b / (2 a), c = b x - a x^2 falls as x grows, so an interval (nl,
+   nh) where f is negative excludes the c strictly between C(nh) and
+   C(nl) (from C(max(nl, m)) with m = b / (2 a), and everything below
+   when nh is infinite); on the branch u <= m, c rises, and the interval
+   excludes the c between C(nl) and C(min(nh, m)).  For a = 0 the root
+   is c / b (b > 0), so the interval excludes the c between b nl and b
+   nh.  The intervals are the shrunk ones (f is negative on them for
+   sure), each further shrunk by a margin for the rounding, so that a c
+   is excluded only when it is inside for certain; a word is excluded
+   when all its c are. */
+#define ROW_RANGES 12   /* at most 2 * 4 exclusions leave 9 ranges */
+static long row_region(long a, long b, long *lo, long *hi)
+{
+  double xlo[8], xhi[8];   /* the excluded intervals of c, open */
+  long n = 0, i, j, nr = 0, w = w_low_all;
+  if(num_neg == 0)
+  { lo[0] = w_low_all; hi[0] = w_high_all; return(1); }
+  if(a > 0)
+  { double A = (double)a, B = (double)b, m = 0.5*B/A;
+    for(i = 0; i < num_neg; i++)
+    { double nl = neg_shrunk_lo[i], nh = neg_shrunk_hi[i], l, h;
+      /* the branch x >= m */
+      l = (nl > m) ? nl : m;
+      if(nh > l)
+      { xlo[n] = (nh == HUGE_VAL) ? -HUGE_VAL : B*nh - A*nh*nh;
+        xhi[n] = B*l - A*l*l;
+        n++;
+      }
+      /* the branch u <= m */
+      h = (nh < m) ? nh : m;
+      if(h > nl)
+      { xlo[n] = (nl == -HUGE_VAL) ? -HUGE_VAL : B*nl - A*nl*nl;
+        xhi[n] = B*h - A*h*h;
+        n++;
+      }
+    }
+  }
+  else
+  { double B = (double)b;
+    for(i = 0; i < num_neg; i++)
+    { double nl = neg_shrunk_lo[i], nh = neg_shrunk_hi[i];
+      xlo[n] = (nl == -HUGE_VAL) ? -HUGE_VAL : B*nl;
+      xhi[n] = (nh == HUGE_VAL) ? HUGE_VAL : B*nh;
+      n++;
+    }
+  }
+  /* the margins (an infinite end stays), then the intervals in order of
+     their lower ends */
+  for(i = 0; i < n; i++)
+  { if(xlo[i] > -HUGE_VAL) { xlo[i] += 1.0e-9*(fabs(xlo[i]) + 1.0) + 1.0; }
+    if(xhi[i] < HUGE_VAL) { xhi[i] -= 1.0e-9*(fabs(xhi[i]) + 1.0) + 1.0; }
+  }
+  for(i = 1; i < n; i++)
+  { double l = xlo[i], h = xhi[i];
+    for(j = i; j > 0 && xlo[j-1] > l; j--) { xlo[j] = xlo[j-1]; xhi[j] = xhi[j-1]; }
+    xlo[j] = l; xhi[j] = h;
+  }
+  /* the words left: w is the first word not yet placed */
+  for(i = 0; i < n; i++)
+  { long wl, wh;   /* the words wholly inside (xlo, xhi): [wl, wh) */
+    if(xhi[i] - xlo[i] < (double)LONG_LENGTH) { continue; }
+    /* the first c > xlo is at most (long) xlo + 2, the last c < xhi at
+       least (long) xhi - 2 (the cast truncates towards 0; a c more or
+       less at the ends is kept, which is safe); the words wholly inside
+       those c, by the shifts, which round down */
+    { if(xlo[i] < -3.0e9) { wl = w_low_all; }
+      else { long c = (long)xlo[i] + 2; wl = (c + LONG_MASK) >> LONG_SHIFT; }
+      if(xhi[i] > 3.0e9) { wh = w_high_all; }
+      else { long c = (long)xhi[i] - 2; wh = (c + 1) >> LONG_SHIFT; }
+    }
+    if(wl < w) { wl = w; }
+    if(wh > w_high_all) { wh = w_high_all; }
+    if(wh <= wl) { continue; }
+    if(wl > w) { lo[nr] = w; hi[nr] = wl; nr++; }
+    w = wh;
+  }
+  if(w < w_high_all) { lo[nr] = w; hi[nr] = w_high_all; nr++; }
+  return(nr);
 }
 
 /* the Taylor shift of the polynomial p[0], p[s], ..., p[deg*s] (the
@@ -443,55 +546,65 @@ static inline void shift1(double *p, long deg, long s, double x)
   return;
 }
 
-/* the shift of P[j][k] (b^j c^k, j + k <= deg, row length 5) to (bm, cm) */
-static inline void shift2(double *P, long deg, double bm, double cm)
+/* the shift of P[j][k] (b^j c^k, j + k <= deg) to (bm, cm) */
+static inline void shift2(double *Q, long deg, double bm, double cm)
 {
   long j, k;
-  for(k = 0; k <= deg; k++) { shift1(P + k, deg - k, 5, bm); }
-  for(j = 0; j <= deg; j++) { shift1(P + 5*j, deg - j, 1, cm); }
+  for(k = 0; k <= deg; k++) { shift1(Q + k, deg - k, L, bm); }
+  for(j = 0; j <= deg; j++) { shift1(Q + L*j, deg - j, 1, cm); }
   return;
 }
 
-/* the sum over (j, k) != (0, 0), j + k <= deg, of |P[j][k]| rp[5j + k],
-   rp holding the products rb^j rc^k */
-static inline double tube_sum(double *P, long deg, double *rp)
+/* the sum over (j, k) != (0, 0), j + k <= deg, of |Q[j][k]| rp[j][k], rp
+   holding the products rb^j rc^k */
+static inline double tube_sum(double *Q, long deg, double *rp)
 {
   double sum = 0.0;
   long j, k;
   for(j = 0; j <= deg; j++)
     for(k = (j == 0) ? 1 : 0; k <= deg - j; k++)
-    { sum += fabs(P[5*j + k]) * rp[5*j + k]; }
+    { sum += fabs(Q[L*j + k]) * rp[L*j + k]; }
   return(sum);
 }
 
-/* the value of the polynomial with the coefficients PA at (x, y) */
-static inline double tube_eval(double *PA, long deg, double x, double y)
+/* the value of the polynomial with the coefficients QA at (x, y) */
+static inline double tube_eval(double *QA, long deg, double x, double y)
 {
   double sum = 0.0, xj = 1.0;
   long j, k;
   for(j = 0; j <= deg; j++)
   { double yk = 1.0;
-    for(k = 0; k <= deg - j; k++) { sum += PA[5*j + k] * xj * yk; yk *= y; }
+    for(k = 0; k <= deg - j; k++) { sum += QA[L*j + k] * xj * yk; yk *= y; }
     xj *= x;
   }
   return(sum);
 }
 
-/* the word i can hold a point of the row b: count it, or collect it into
+/* the sign of a polynomial throughout the cell: 1 or -1 when the bounds
+   show it, else 0; *hi bounds its absolute value, err is the margin for
+   the rounding errors */
+static inline int poly_sign(double *Q, long deg, double *rp, double err,
+                            double *lo, double *hi)
+{
+  double s = tube_sum(Q, deg, rp) + err;
+  *lo = fabs(Q[0]) - s; *hi = fabs(Q[0]) + s;
+  if(*lo > 0.0) { return((Q[0] > 0.0) ? 1 : -1); }
+  return(0);
+}
+
+/* the words [i_lo, i_hi) can hold a point of the row b: collected into
    the row's ranges (merged with the last one when they touch; beyond
    TUBE_RANGES ranges the row keeps their hull) */
-static void tube_emit(long b, long i)
+static inline void tube_emit(long b, long i_lo, long i_hi)
 {
-  long row = b - band_b0, nr;
-  if(tube_counting) { tube_n++; return; }
-  nr = band_nr[row];
-  if(nr > 0 && band_hi[row][nr-1] >= i)
-  { if(band_hi[row][nr-1] < i + 1) { band_hi[row][nr-1] = i + 1; }
+  long row = b - band_b0, nr = band_nr[row];
+  if(nr > 0 && band_hi[row][nr-1] >= i_lo)
+  { if(band_hi[row][nr-1] < i_hi) { band_hi[row][nr-1] = i_hi; }
     return;
   }
   if(nr == TUBE_RANGES)
-  { band_hi[row][0] = i + 1; band_nr[row] = 1; return; }
-  band_lo[row][nr] = i; band_hi[row][nr] = i + 1;
+  { band_hi[row][0] = i_hi; band_nr[row] = 1; return; }
+  band_lo[row][nr] = i_lo; band_hi[row][nr] = i_hi;
   band_nr[row] = nr + 1;
   return;
 }
@@ -499,45 +612,55 @@ static void tube_emit(long b, long i)
 /* the cell of the rows b_lo..b_hi and the words [i_lo, i_hi) */
 static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
 {
-  static _Thread_local double rp[25], last_rb = -1.0, last_rc = -1.0;
-  tube_ncells++;
+  static _Thread_local double rp[NC], last_rb = -1.0, last_rc = -1.0;
   long rows = b_hi - b_lo + 1, words = i_hi - i_lo;
-  double p0[25], p1[25], p2[25], p[25], m[25];
+  double p0[NC], p1[NC], p2[NC], q[NC];
   double bm = 0.5*(double)(b_lo + b_hi), rb = 0.5*(double)(b_hi - b_lo);
   double cm = 32.0*(double)(i_lo + i_hi) - 0.5;
   double rc = 32.0*(double)(i_hi - i_lo) - 0.5;
-  double ma, m1, m2, lowp, lowm, low2, up2;
+  double fb = fabs(bm) + rb, fc = fabs(cm) + rc;   /* the far corner */
+  double ma, lo2, hi2, lop, hip, lom, him, err, m[NC];
+  int s2, sp, sm, inside;
   long j, k;
+  tube_ncells++;
   /* the products rb^j rc^k, the same for cells of one size */
   if(rb != last_rb || rc != last_rc)
   { double rbj;
-    for(j = 0, rbj = 1.0; j < 5; j++, rbj *= rb)
+    for(j = 0, rbj = 1.0; j < L; j++, rbj *= rb)
     { double rck = rbj;
-      for(k = 0; k < 5; k++, rck *= rc) { rp[5*j + k] = rck; }
+      for(k = 0; k < L; k++, rck *= rc) { rp P(j,k) = rck; }
     }
     last_rb = rb; last_rc = rc;
   }
-  for(j = 0; j < 25; j++) { p0[j] = K0[j]; p1[j] = K1[j]; p2[j] = K2[j]; }
+  for(j = 0; j < NC; j++) { p0[j] = K0[j]; p1[j] = K1[j]; p2[j] = K2[j]; }
   shift2(p0, 4, bm, cm); shift2(p1, 3, bm, cm); shift2(p2, 2, bm, cm);
-  for(j = 0; j < 25; j++)
-  { p[j] = p0[j] + th*p1[j] + th2*p2[j];    /* Q(h) */
-    m[j] = p0[j] - th*p1[j] + th2*p2[j];    /* Q(-h) */
+  /* the scale of the rounding errors: |k0| + W |k1| + W^2 |k2| over the
+     cell is bounded by its absolute polynomial at the far corner, and
+     that bounds each of them */
+  ma = tube_eval(KA, 4, fb, fc);
+  err = TUBE_EPS*ma;
+  s2 = poly_sign(p2, 2, rp, err/th2, &lo2, &hi2);   /* the sign of k2 */
+  for(j = 0; j < NC; j++)
+  { q[j] = p0[j] + th*p1[j] + th2*p2[j];    /* Q(W) */
+    m[j] = p0[j] - th*p1[j] + th2*p2[j];    /* Q(-W) */
   }
-  /* the scales of the rounding errors: |k0| + h |k1| + h^2 |k2| over
-     the cell bounds each of them */
-  ma = tube_eval(KA, 4, fabs(bm) + rb, fabs(cm) + rc);
-  m1 = ma / th; m2 = ma / th2;
-  /* a root of Q in [-h, h] by a sign change between -h and h: out when
-     Q(h) and Q(-h) keep one and the same sign throughout the cell */
-  lowp = fabs(p[0]) - tube_sum(p, 4, rp) - TUBE_EPS*ma;
-  lowm = fabs(m[0]) - tube_sum(m, 4, rp) - TUBE_EPS*ma;
-  if(lowp > 0.0 && lowm > 0.0 && (p[0] > 0.0) == (m[0] > 0.0))
-  { /* both roots inside: k2 must have the sign of Q(h), Q(-h), and
-       |k1| <= 2 h |k2|; out when either fails throughout */
-    low2 = fabs(p2[0]) - tube_sum(p2, 2, rp) - TUBE_EPS*m2;
-    if(low2 > 0.0 && (p2[0] > 0.0) != (p[0] > 0.0)) { return; }
-    up2 = fabs(p2[0]) + tube_sum(p2, 2, rp) + TUBE_EPS*m2;
-    if(fabs(p1[0]) - tube_sum(p1, 3, rp) - TUBE_EPS*m1 > 2.0*th*up2) { return; }
+  sp = poly_sign(q, 4, rp, err, &lop, &hip);
+  sm = poly_sign(m, 4, rp, err, &lom, &him);
+  /* a sign change of Q between -W and W throughout: a root inside */
+  inside = (sp != 0 && sm != 0 && sp != sm);
+  if(sp != 0 && sm != 0 && sp == sm)
+  { /* the same sign throughout: both roots inside, or none; out when k2
+       has the other sign, or |k1| > 2 W |k2|, throughout */
+    double lo1, hi1;
+    if(s2 != 0 && s2 != sp) { return; }
+    poly_sign(p1, 3, rp, err/th, &lo1, &hi1);
+    if(lo1 > 2.0*th*hi2) { return; }
+  }
+  /* the condition holds throughout: the cell whole */
+  if(inside)
+  { long b;
+    for(b = b_lo; b <= b_hi; b++) { tube_emit(b, i_lo, i_hi); }
+    return;
   }
   /* halve the cell: in words while it has more than one and is not much
      longer in rows (TUBE_ROWS rows to a word), else in rows while it has
@@ -555,23 +678,41 @@ static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
     return;
   }
   { long b;
-    for(b = b_lo; b <= b_hi; b++) { tube_emit(b, i_lo); }
+    for(b = b_lo; b <= b_hi; b++) { tube_emit(b, i_lo, i_lo + 1); }
   }
   return;
 }
 
-/* the words per row the tube leaves and the cells per row its analysis
-   visits, for the cost model, from bands of 64 rows of a few a spread
-   over the box */
-void tube_sample(double *words_per_row, double *cells_per_row)
+/* the ranges of the row cut to its real region: those of the band's row
+   (from the cells) intersected with those of row_region, into rlo, rhi;
+   their number returned */
+static long row_cut(long row, long nreg, long *reglo, long *reghi, long *rlo, long *rhi)
 {
-  long k, rows = 0, w_low = (-height)>>LONG_SHIFT, w_high = (height>>LONG_SHIFT) + 1;
-  double words = 0.0, cells = 0.0;
+  long nr = band_nr[row], i = 0, j = 0, n = 0;
+  while(i < nr && j < nreg)
+  { long lo = (band_lo[row][i] > reglo[j]) ? band_lo[row][i] : reglo[j];
+    long hi = (band_hi[row][i] < reghi[j]) ? band_hi[row][i] : reghi[j];
+    if(lo < hi) { rlo[n] = lo; rhi[n] = hi; n++; }
+    if(band_hi[row][i] < reghi[j]) { i++; } else { j++; }
+  }
+  return(n);
+}
+
+/* for the cost model, from bands of 64 rows of a few a spread over the
+   box: the words per row the tube leaves, as they are and cut to the
+   real region, the cells it visits per row and the fraction of the rows
+   with a word; the words per row of the real region alone, in how many
+   ranges, and the fraction of the rows that meet it */
+void tube_sample(double *tube_words, double *tube_words_cut, double *tube_cells, double *tube_rows,
+                 double *reg_words, double *reg_ranges, double *reg_rows)
+{
+  long k, rows = 0, left = 0, tleft = 0, w_low = (-height)>>LONG_SHIFT, w_high = (height>>LONG_SHIFT) + 1;
+  double twords = 0.0, tcut = 0.0, cells = 0.0, rwords = 0.0, ranges = 0.0;
   th = (double)dbound; th2 = th*th;
+  w_low_all = w_low; w_high_all = w_high;
   if(band_nr == NULL) { init_thread_sieve(); }
-  tube_counting = 1;
   for(k = 0; k < 24; k++)
-  { long a = (k * 7919L) % (height + 1), b_lo, b_hi;
+  { long a = (k * 7919L) % (height + 1), b_lo, b_hi, b;
     if(degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
     { a = a % (long)floor(sqrt((double)height) + 1); a = a*a; }
     b_lo = ((k * 104729L) % (2*height + 1)) - height;
@@ -579,16 +720,31 @@ void tube_sample(double *words_per_row, double *cells_per_row)
     b_hi = b_lo + 63;
     if(b_hi > height) { b_hi = height; }
     tube_a_init(a);
-    tube_n = 0; tube_ncells = 0;
+    tube_ncells = 0;
     band_b0 = b_lo;
-    tube_cell(b_lo, b_hi, w_low, w_high);
-    words += (double)tube_n;
+    for(b = b_lo; b <= b_hi; b++) { band_nr[b - b_lo] = 0; }
+    if(dbounded) { tube_cell(b_lo, b_hi, w_low, w_high); }
+    for(b = b_lo; b <= b_hi; b++)
+    { long reglo[ROW_RANGES], reghi[ROW_RANGES], rlo[ROW_RANGES + TUBE_RANGES], rhi[ROW_RANGES + TUBE_RANGES];
+      long nreg = row_region(a, b, reglo, reghi), n, r;
+      for(r = 0; r < nreg; r++) { rwords += (double)(reghi[r] - reglo[r]); }
+      ranges += (double)nreg;
+      if(nreg > 0) { left++; }
+      n = row_cut(b - b_lo, nreg, reglo, reghi, rlo, rhi);
+      for(r = 0; r < n; r++) { tcut += (double)(rhi[r] - rlo[r]); }
+      for(r = 0; r < band_nr[b - b_lo]; r++) { twords += (double)(band_hi[b - b_lo][r] - band_lo[b - b_lo][r]); }
+      if(band_nr[b - b_lo] > 0) { tleft++; }
+    }
     cells += (double)tube_ncells;
     rows += b_hi - b_lo + 1;
   }
-  tube_counting = 0;
-  *words_per_row = (rows > 0) ? words / (double)rows : 1.0;
-  *cells_per_row = (rows > 0) ? cells / (double)rows : 1.0;
+  *tube_words = (rows > 0) ? twords / (double)rows : 1.0;
+  *tube_words_cut = (rows > 0) ? tcut / (double)rows : 1.0;
+  *tube_cells = (rows > 0) ? cells / (double)rows : 1.0;
+  *tube_rows = (rows > 0) ? (double)tleft / (double)rows : 1.0;
+  *reg_words = (rows > 0) ? rwords / (double)rows : 1.0;
+  *reg_ranges = (rows > 0) ? ranges / (double)rows : 1.0;
+  *reg_rows = (rows > 0) ? (double)left / (double)rows : 1.0;
   return;
 }
 
@@ -596,9 +752,9 @@ void tube_sample(double *words_per_row, double *cells_per_row)
    ends of the row and the excluded c0, then the table primes one by
    one, then the bits; returns 1 when one point is enough and one was
    found */
+static _Thread_local long cur_chunk = 0;
 static int tube_word(long a, long b, long i, bit_array mask, long c0)
 {
-  static _Thread_local long cur_chunk = 0;
   chunk_spec *ch;
   long k, n;
   bit_array nums = mask;
@@ -624,25 +780,42 @@ static int tube_word(long a, long b, long i, bit_array mask, long c0)
 }
 
 static void row_setup(long a, long b);
+static int sift_range(long, long, long, long, long, bit_array, long);
 
-/* the rows of a, in the tube: the multiples of m among the b (see
-   row_step), from b_first on; band by band, the words that can hold a
-   point collected, then the rows sieved in order */
-int sift_tube(long a, long b_first, long m)
+/* the rows of a, in the tube or the region: the multiples of m among the
+   b (see row_step), from b_first on; band by band, the words that can
+   hold a point collected, then the rows sieved in order, each collected
+   word on its own (the tube, its words cut to the real region when the
+   model says so) or each range by the passes (the region) */
+int sift_bands(long a, long b_first, long m)
 {
   long b_lo;
+  int tube = (sieve_mode == 1);
   tube_a_init(a);
   for(b_lo = b_first; b_lo <= height; b_lo += TUBE_BAND)
   { long b_hi = b_lo + TUBE_BAND - 1, b, k;
     if(b_hi > height) { b_hi = height; }
     band_b0 = b_lo;
-    for(k = 0; k <= b_hi - b_lo; k++) { band_nr[k] = 0; }
-    tube_cell(b_lo, b_hi, w_low_all, w_high_all);
+    if(tube)
+    { for(k = 0; k <= b_hi - b_lo; k++) { band_nr[k] = 0; }
+      tube_cell(b_lo, b_hi, w_low_all, w_high_all);
+    }
     for(b = b_lo; b <= b_hi; b += m)
-    { long nr = band_nr[b - b_lo], c0, i;
+    { long reglo[ROW_RANGES], reghi[ROW_RANGES], clo[ROW_RANGES + TUBE_RANGES], chi[ROW_RANGES + TUBE_RANGES];
+      long *rlo, *rhi, nr, c0, i;
       bit_array mask;
-      if(nr == 0) { continue; }
+      if(tube && band_nr[b - b_lo] == 0) { continue; }
       if(use2 && a != 0 && !alive2[a & 63][b & 63]) { continue; }
+      if(tube && !tube_cut)
+      { nr = band_nr[b - b_lo]; rlo = band_lo[b - b_lo]; rhi = band_hi[b - b_lo]; }
+      else if(tube)
+      { nr = row_region(a, b, reglo, reghi);
+        nr = row_cut(b - b_lo, nr, reglo, reghi, clo, chi);
+        rlo = clo; rhi = chi;
+      }
+      else
+      { nr = row_region(a, b, reglo, reghi); rlo = reglo; rhi = reghi; }
+      if(nr == 0) { continue; }
       row_setup(a, b);
       c0 = height + LONG_LENGTH;
       if(a != 0 && (b*b)%(4*a) == 0) { c0 = (b*b)/(4*a); }
@@ -650,9 +823,22 @@ int sift_tube(long a, long b_first, long m)
       if(use2 && a != 0) { mask = mask2[a & 63][b & 63]; }
       else if(!((a|b)&1)) { mask = HALF_MASK; }
       for(k = 0; k < nr; k++)
-      { num_surv1 += band_hi[b - b_lo][k] - band_lo[b - b_lo][k];
-        for(i = band_lo[b - b_lo][k]; i < band_hi[b - b_lo][k]; i++)
-        { if(tube_word(a, b, i, mask, c0) && one_point) { return(1); } }
+      { long lo = rlo[k], hi = rhi[k];
+        if(tube)
+        { num_surv1 += hi - lo;
+          for(i = lo; i < hi; i++)
+          { if(tube_word(a, b, i, mask, c0) && one_point) { return(1); } }
+        }
+        else
+        { long c;
+          while(lo >= chunks[cur_chunk].w_high) { cur_chunk++; }
+          while(lo < chunks[cur_chunk].w_low) { cur_chunk--; }
+          for(c = cur_chunk; c < num_chunks && chunks[c].w_low < hi; c++)
+          { long l = (lo > chunks[c].w_low) ? lo : chunks[c].w_low;
+            long h = (hi < chunks[c].w_high) ? hi : chunks[c].w_high;
+            if(sift_range(a, b, c, l, h, mask, c0) && one_point) { return(1); }
+          }
+        }
       }
     }
   }
@@ -666,28 +852,52 @@ int sift_tube(long a, long b_first, long m)
 /*------------------------------------------------------------------------+
  | The following procedure is the heart of the matter.                    |
  | The overall speed of the program highly depends on the quality         |
- | of the code the compiler produces for the innermost loops in sift0.    |
+ | of the code the compiler produces for the innermost loops in           |
+ | sift_range.                                                            |
  +------------------------------------------------------------------------*/
 
-/* The walk of the n-th prime over the chunk: OP(word of the bit array,
-   table word) for every word.  The scalar walk (VW = 1) reads the table
-   row from its word w->first up to its end, then in full periods of p
-   words, then the tail; the vector walk reads VW words at a time from
-   the offset w->first on, wrapping at the period. */
+/* The walk of the n-th prime over the words [off, off + len) of the
+   chunk: OP(word of the bit array, table word) for every word.  The
+   scalar walk (VW = 1) reads the table row from its word f1 up to its
+   end, then in full periods of p words, then the tail; the vector walk
+   reads VW words at a time from the offset f1 on, wrapping at the
+   period.  For the whole chunk the walk is the precomputed one; for a
+   range it starts off words further on, and its parts are computed
+   from the residue tables, without a division. */
+static inline void walk_parts(long n, long p, walk_spec *w, long off, long len,
+                              int whole, long *f1, long *hd, long *np, long *tl)
+{
+  if(whole) { *f1 = w->first; *hd = w->head; *np = w->nper; *tl = w->tail; return; }
+  if(VW == 1)
+  { long f = w->first + res0[off*npr + n], h, rem, r;
+    if(f > p) { f -= p; }
+    h = p - f;
+    if(h > len) { h = len; }
+    rem = len - h; r = res0[rem*npr + n];
+    *f1 = f; *hd = h; *tl = r;
+    *np = (long)((double)(rem - r) * invp[n] + 0.5);   /* exact: p | rem - r */
+  }
+  else
+  { long t = w->first + ((period[n] == p) ? res0[off*npr + n] : off % period[n]);
+    if(t >= period[n]) { t -= period[n]; }
+    *f1 = t; *hd = *np = *tl = 0;
+  }
+  return;
+}
 #if VW == 1
 #define WALK(OP) \
-  { bit_array *surv = survivors; \
-    bit_array *siv1 = &rowptr[n][w->first]; \
+  { bit_array *surv = surv0; \
+    bit_array *siv1 = &rowptr[n][f1]; \
     long j; \
-    for(j = w->head; j; j--) { OP(*surv, *siv1); surv++; siv1++; } \
+    for(j = hd; j; j--) { OP(*surv, *siv1); surv++; siv1++; } \
     /* now siv1 points at the end of the table row, whose word p repeats \
        its word 0, if there is anything left to do */ \
-    for(j = w->nper; j; j--) \
+    for(j = np; j; j--) \
     { bit_array *siv0 = siv1; \
       siv1 -= p; \
       do { OP(*surv, *siv1); surv++; siv1++; } while(siv1 != siv0); \
     } \
-    if((j = w->tail)) \
+    if((j = tl)) \
     { siv1 -= p; \
       for( ; j; j--) { OP(*surv, *siv1); surv++; siv1++; } \
     } \
@@ -696,94 +906,106 @@ int sift_tube(long a, long b_first, long m)
 #define FILL_OP(d, s) ((d) = mask & (s))
 #else
 #define WALK(OP) \
-  { vec *surv = (vec *)survivors; \
+  { vecu *surv = (vecu *)surv0; \
     bit_array *row = rowptr[n]; \
-    long t = w->first, P = period[n], j; \
-    (void)p; \
-    for(j = ch->nvec; j; j--) \
+    long t = f1, Pd = period[n], j; \
+    (void)p; (void)hd; (void)np; (void)tl; \
+    for(j = nv; j; j--) \
     { vec s = *(vecu *)(row + t); \
       OP(*surv, s); surv++; \
-      t += VW; t -= (t >= P) ? P : 0; \
+      t += VW; t -= (t >= Pd) ? Pd : 0; \
     } \
   }
 #define AND_OP(d, s) ((d) &= (s))
 #define FILL_OP(d, s) ((d) = vmask & (s))
 #endif
 
-/* Sieve the k-th chunk of the row (a, b): the bit array set from the mask
-   (all bits, or the odd c when a and b are even) and the table of the
-   first prime in one pass, the ends of the row and the excluded c0 taken
-   out, the other first-stage primes ANDed in, the surviving words passed
-   to the second stage. */
-static int sift0(long a, long b, long k, bit_array mask, long c0)
+/* Sieve the words [lo, hi) of the k-th chunk of the row (a, b) -- the
+   whole chunk in the box: the bit array set from the mask (all bits, or
+   the odd c when a and b are even) and the table of the first prime in
+   one pass, the ends of the row and the excluded c0 taken out, the other
+   first-stage primes ANDed in, the surviving words passed to the second
+   stage. */
+static int sift_range(long a, long b, long k, long lo, long hi, bit_array mask, long c0)
 {
   chunk_spec *ch = &chunks[k];
-  long n, range = ch->w_high - ch->w_low;
+  long n, range = ch->w_high - ch->w_low, off = lo - ch->w_low, len = hi - lo;
+  long f1, hd, np, tl, cw = (c0>>LONG_SHIFT) - ch->w_low;
+  int whole;
+  bit_array *surv0;
 #if VW > 1
   vec vmask;
+  long nv;
   for(n = 0; n < VW; n++) { vmask[n] = mask; }
+  /* whole vectors: the range widened to them (the words beyond the chunk
+     cleared before the scan) */
+  { long o = off & ~(VW - 1);
+    len += off - o; off = o;
+    len = (len + VW - 1) & ~(VW - 1);
+    if(off + len > ch->nvec*VW) { len = ch->nvec*VW - off; }
+    nv = len/VW;
+  }
 #endif
+  whole = (off == 0 && len >= range);
+  surv0 = survivors + off;
   /* the fill, merged with the first prime's pass if there is one */
   if(sieve_primes1 == 0)
-  { bit_array *surv = survivors;
+  { bit_array *surv = surv0;
     long i;
-    for(i = range; i; i--) { *surv++ = mask; }
+    for(i = len; i; i--) { *surv++ = mask; }
     n = 0;
   }
   else
   { long p = pr[0];
     walk_spec *w = &ch->walk[0];
     n = 0;
+    walk_parts(0, p, w, off, len, whole, &f1, &hd, &np, &tl);
     WALK(FILL_OP);
     n = 1;
   }
-  if(k == 0) { survivors[0] &= begmask; }
-  if(k == num_chunks - 1) { survivors[range-1] &= endmask; }
-  if(ch->w_low <= (c0>>LONG_SHIFT) && (c0>>LONG_SHIFT) < ch->w_high)
-  { survivors[(c0>>LONG_SHIFT) - ch->w_low] &= ~(1UL<<(c0 & LONG_MASK)); }
-#if (DEBUG >= 3)
-  { long i;
-    for(i = 0; i < range; i++) printf(" %8.8lx",survivors[i]);
-  }
-#endif
+  if(k == 0 && off == 0) { survivors[0] &= begmask; }
+  if(k == num_chunks - 1 && off + len >= range) { survivors[range-1] &= endmask; }
+  if(off <= cw && cw < off + len) { survivors[cw] &= ~(1UL<<(c0 & LONG_MASK)); }
 #if (DEBUG >= 1)
-  printf("\n sift0(%ld, %ld)\n", ch->w_low, ch->w_high);
+  printf("\n sift_range(%ld, %ld)\n", lo, hi);
 #endif
   /* now do the sieving (fast!) */
   for( ; n < sieve_primes1; n++)
   { long p = pr[n];
     walk_spec *w = &ch->walk[n];
+    walk_parts(n, p, w, off, len, whole, &f1, &hd, &np, &tl);
     WALK(AND_OP);
   }
 #if (DEBUG >= 3)
   { long i;
-    for(i = 0; i < range; i++) { printf(" %8.8lx",survivors[i]); }
+    for(i = off; i < off + len; i++) { printf(" %8.8lx",survivors[i]); }
     printf("\n");
   }
 #endif
   /* Check the points that have survived the sieve if they really are points */
 #if VW == 1
-  { bit_array *surv0 = &survivors[0];
+  { bit_array *surv = surv0;
     bit_array nums;
     long i;
-    for(i = 0; i < range; i++)
-    { if((nums = *surv0++))
+    for(i = off; i < off + len; i++)
+    { if((nums = *surv++))
       { if(check_point(nums, a, b, ch->w_low + i, i, ch->res) && one_point)
         { return(1); }
   } } }
 #else
   { /* the padding beyond the chunk cleared, then a vector at a time */
-    vec *sv = (vec *)survivors;
+    vecu *sv = (vecu *)surv0;
     long i, j;
-    for(i = range; i < ch->nvec*VW; i++) { survivors[i] = 0; }
-    for(j = 0; j < ch->nvec; j++)
+    for(i = range; i < off + len; i++) { survivors[i] = 0; }
+    for(j = 0; j < nv; j++)
     { vec v = sv[j];
       bit_array any = 0;
       for(i = 0; i < VW; i++) { any |= v[i]; }
       if(any)
       { for(i = 0; i < VW; i++)
         { bit_array nums = v[i];
-          if(nums && check_point(nums, a, b, ch->w_low + j*VW + i, j*VW + i, ch->res)
+          long pos = off + j*VW + i;
+          if(nums && check_point(nums, a, b, ch->w_low + pos, pos, ch->res)
              && one_point)
           { return(1); }
         }
@@ -798,13 +1020,12 @@ static int sift0(long a, long b, long k, bit_array mask, long c0)
    (a, b): b steps by a constant from one row to the next, so they are
    kept and advanced, and computed by division only when a changes or
    the caller jumps back; a step of any size is reduced mod p by the
-   reciprocal in double precision (exact: the error of b/p is far below
+   reciprocal in double precision (exact: the error of d/p is far below
    1/p) */
 static void row_setup(long a, long b)
 {
   static _Thread_local long last_a = -1, last_b = 0, last_d = 0;
   static _Thread_local long bres[NUM_PRIMES], dres[NUM_PRIMES], drow[NUM_PRIMES];
-  static _Thread_local double invp[NUM_PRIMES];
   long n, d = b - last_b;
   if(a == last_a && d > 0 && d < 3)
   { /* a step below every prime: the residues step by d */
@@ -841,7 +1062,6 @@ static void row_setup(long a, long b)
       if(bp < 0) { bp += p; }
       bres[n] = bp;
       rowptr[n] = &sieve_tab[n][(ap*p + bp)*rowlen[n]];
-      invp[n] = 1.0 / (double)p;
     }
     last_d = 0;
   }
@@ -850,7 +1070,7 @@ static void row_setup(long a, long b)
 }
 
 int sift(long a, long b)
-/* print points surviving sieve */
+/* the row (a, b) in the box: every chunk whole */
 {
   long k;
   /* c0 is value of c that has to be excluded */
@@ -867,6 +1087,8 @@ int sift(long a, long b)
   else if(!((a|b)&1)) { mask = HALF_MASK; }
   /* Now the chunks of longwords (= bit_arrays) */
   for(k = 0; k < num_chunks; k++)
-  { if(sift0(a, b, k, mask, c0) && one_point) { return(1); } }
+  { if(sift_range(a, b, k, chunks[k].w_low, chunks[k].w_high, mask, c0) && one_point)
+    { return(1); }
+  }
   return(0);
 }

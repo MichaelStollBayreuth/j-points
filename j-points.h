@@ -92,14 +92,17 @@ extern unsigned char is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
 extern double kd400, kd310, kd301, kd220, kd211, kd202, kd130, kd121, kd112,
               kd103, kd040, kd031, kd022, kd013, kd004;
 extern double fd[7];
-extern int tube_mode;    /* the tube of plain runs, see j-sift.c */
+extern int sieve_mode;   /* 0 the box, 1 the tube, 2 the region: see j-sift.c */
+extern int tube_cut;     /* the tube's words cut to the real region */
 extern bit_array mask2[64][64];
 extern unsigned char alive2[64][64];
 extern int use2;         /* the condition at 2, see j-points.c */
-extern void tube_sample(double *, double *);
+extern void tube_sample(double *, double *, double *, double *, double *, double *, double *);
+extern long num_neg;         /* the intervals where f is negative, see j-points.c */
+extern double neg_grown_lo[], neg_grown_hi[], neg_shrunk_lo[], neg_shrunk_hi[];
 extern long degree;
 extern MP_INT coeffs[7];
-extern int sift_tube(long, long, long);
+extern int sift_bands(long, long, long);
 
 extern _Thread_local long num_surv1;   /* the survivors of the first stage, per thread */
 extern _Thread_local long num_surv2;   /* ... of the second stage */
@@ -108,6 +111,7 @@ extern _Thread_local bit_array *survivors; /* the bit array of the thread */
 extern long num_threads;
 extern long height;          /* The height bound */
 extern long dbound;          /* The bound on the fourth coordinate */
+extern int dbounded;         /* ... and whether there is one */
 extern long array_size;      /* The size of the survivors array (in longs) */
 extern bit_array begmask, endmask;
    /* Bit masks for the beginning and end of the sieving array */
