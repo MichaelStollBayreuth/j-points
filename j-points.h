@@ -67,8 +67,8 @@ extern long sieve_primes1;
    /* The number of primes used for the first sieving stage */
 extern long sieve_primes2;
    /* The number of primes used for both sieving stages */
-extern bit_array
-       sieve[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
+extern bit_array *sieve_tab[NUM_PRIMES];
+   /* The sieve table of each sieving prime, see j-points.c */
 
 extern long num_surv1;   /* Used to count the survivors of the first stage */
 extern long num_surv2;   /* Used to count the survivors of the second stage */

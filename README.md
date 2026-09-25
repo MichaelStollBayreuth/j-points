@@ -186,6 +186,11 @@ sieve together.
     row starts in it, the residue of its first word) is computed once at
     set-up instead of per row, and the residues of the first two
     coordinates are kept and advanced from one row to the next. 1.2-1.4x.
+  + The sieve tables allocated per prime in use, with rows of p+1 words,
+    instead of a static array of 480 MB (of which a run touched about 100
+    MB; now 15-20 MB), the row pointers advanced from row to row, and the
+    fill of the bit array merged into the first prime's pass. Another
+    1.1-1.15x.
 
 Michael Stoll, October 1998 - September 2026.
 
