@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-2.1                                                        *
+ * j-points-3.0                                                        *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -41,7 +41,7 @@
 #define DEFAULT_SIZE 10     /* Default value for the -s option */
 
 #define J_POINTS_VERSION \
-  "This is j-points-2.1 by Michael Stoll (2026-09-24).\n\n" \
+  "This is j-points-3.0 by Michael Stoll (2026-09-25).\n\n" \
   "Please acknowledge use of the program in published work.\n"
 
 /**************************************************************************
@@ -477,14 +477,7 @@ void init_fmodpsquare(void)
       if(ratio2*(1.0 - prec[n].r) < 1.0) break;
     sieve_primes2 = n;
   }
-  for(n = 0; n < sieve_primes1; n++)
-  { pnn[n] = prec[n].n;
-    sieves1[n].p = prime[pnn[n]];
-  }
-  for( ; n < sieve_primes2; n++)
-  { pnn[n] = prec[n].n;
-    sieves2p[n-sieve_primes1].p = sieves2n[n-sieve_primes1].p = prime[pnn[n]];
-  }
+  for(n = 0; n < sieve_primes2; n++) { pnn[n] = prec[n].n; }
   if(!quiet)
   { message(4, 0);
     if(sieve_primes2 > 0)
@@ -687,7 +680,8 @@ void find_points(void)
   init_sieve();
   if(sieve_primes2 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
-  survivors = (bit_array *)malloc(array_size*sizeof(bit_array));
+  /* the bit array and the tables of the chunks */
+  init_sift();
   /* deal with (0, 0, c, d) */
   if(degree == 6 && mpz_perfect_square_p(&coeffs[6]))
   { mpz_mul(&fff, &coeffs[5], &coeffs[5]);
@@ -1293,6 +1287,7 @@ void error(long errno)
     case 4: printf("\nIncorrect height argument.\n");
             printf("  Height must be in [1, %ld].\n\n", MAX_HEIGHT); break;
     case 5: printf("\nThe polynomial must have degree at least 5.\n\n"); break;
+    case 7: printf("\nNot enough memory.\n\n"); break;
     case 6: printf("\nWrong syntax for optional arguments:\n\n");
     case 2:
       printf("\n");
