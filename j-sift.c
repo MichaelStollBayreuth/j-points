@@ -324,12 +324,12 @@ int sift(long a, long b)
 /* print points surviving sieve */
 {
   /* the residues of b modulo the sieving primes and the table rows of
-     (a, b): b steps by one from one row to the next, so they are kept and
-     advanced, and computed by division only when a changes or the caller
-     jumps */
-  static long last_a = -1, last_b = 0;
-  static long bres[NUM_PRIMES];
-  long n, k;
+     (a, b): b steps by a constant from one row to the next, so they are
+     kept and advanced, and computed by division only when a or the step
+     changes or the caller jumps back */
+  static long last_a = -1, last_b = 0, last_d = 0;
+  static long bres[NUM_PRIMES], dres[NUM_PRIMES], drow[NUM_PRIMES];
+  long n, k, d = b - last_b;
   /* c0 is value of c that has to be excluded */
   long c0 = height + LONG_LENGTH;
   bit_array mask;
@@ -338,10 +338,19 @@ int sift(long a, long b)
   printf("\n sift(a = %ld, b = %ld)\n", a, b);
 #endif
 
-  if(a == last_a && b == last_b + 1)
-  { for(n = 0; n < sieve_primes2; n++)
-    { rowptr[n] += rowlen[n];
-      if(++bres[n] == pr[n]) { bres[n] = 0; rowptr[n] -= blocklen[n]; }
+  if(a == last_a && d > 0)
+  { if(d != last_d)
+    { /* the step d and its residues, at most once per a */
+      for(n = 0; n < sieve_primes2; n++)
+      { dres[n] = d % pr[n];
+        drow[n] = dres[n]*rowlen[n];
+      }
+      last_d = d;
+    }
+    for(n = 0; n < sieve_primes2; n++)
+    { bres[n] += dres[n];
+      rowptr[n] += drow[n];
+      if(bres[n] >= pr[n]) { bres[n] -= pr[n]; rowptr[n] -= blocklen[n]; }
     }
   }
   else
@@ -351,6 +360,7 @@ int sift(long a, long b)
       bres[n] = bp;
       rowptr[n] = &sieve_tab[n][(ap*p + bp)*rowlen[n]];
     }
+    last_d = 0;
   }
   last_a = a; last_b = b;
 
