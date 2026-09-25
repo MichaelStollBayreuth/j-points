@@ -629,11 +629,13 @@ int sift_tube(long a, long b_first, long m)
     { long nr = band_nr[b - b_lo], c0, i;
       bit_array mask;
       if(nr == 0) { continue; }
+      if(use2 && a != 0 && !alive2[a & 63][b & 63]) { continue; }
       row_setup(a, b);
       c0 = height + LONG_LENGTH;
       if(a != 0 && (b*b)%(4*a) == 0) { c0 = (b*b)/(4*a); }
       mask = ~zero;
-      if(!((a|b)&1)) { mask = HALF_MASK; }
+      if(use2 && a != 0) { mask = mask2[a & 63][b & 63]; }
+      else if(!((a|b)&1)) { mask = HALF_MASK; }
       for(k = 0; k < nr; k++)
       { num_surv1 += band_hi[b - b_lo][k] - band_lo[b - b_lo][k];
         for(i = band_lo[b - b_lo][k]; i < band_hi[b - b_lo][k]; i++)
@@ -846,8 +848,10 @@ int sift(long a, long b)
   printf("\n sift(a = %ld, b = %ld)\n", a, b);
 #endif
   row_setup(a, b);
+  /* the fill: the condition at 2 for the row, or just "not all even" */
   mask = ~zero;
-  if(!((a|b)&1)) { mask = HALF_MASK; }
+  if(use2 && a != 0) { mask = mask2[a & 63][b & 63]; }
+  else if(!((a|b)&1)) { mask = HALF_MASK; }
   /* Now the chunks of longwords (= bit_arrays) */
   for(k = 0; k < num_chunks; k++)
   { if(sift0(a, b, k, mask, c0) && one_point) { return(1); } }

@@ -138,6 +138,15 @@ double fd[7];
 int tube_mode = 0;
 double tube_words = 0.0;   /* words per row the tube leaves, sampled */
 double tube_cells = 0.0;   /* cells per row its analysis visits, sampled */
+
+/* The condition at 2 (see twoadic_init): per class of (a, b) mod 64 the
+   word of the admitted c mod 64, the fill of the bit array of a row, and
+   whether the class admits any c at all; the density of the admitted
+   triples and the fraction of empty classes for the cost model */
+bit_array mask2[64][64];
+unsigned char alive2[64][64];
+int use2 = 0;
+double density2 = 1.0, empty2 = 0.0;
 MP_INT cpf1, cpf2, cpf3, cpfa, cpfb, cpfc;
 
 long degree;
@@ -185,6 +194,7 @@ void choose_primes(void);
 void init_sieve(void);
 void kummer_init(void);
 void tube_init(void);
+void twoadic_init(void);
 static inline int relprime(long, long);
 int check_one_point_final(long, long, long, MP_INT *, MP_INT *);
 int check_one_point(long, long, long);
@@ -220,6 +230,8 @@ int main(int argc, char *argv[])
   /* initialise data for equations */
   kummer_init();
   tube_init();
+  /* the condition at 2, when the run is long enough to pay for its table */
+  if(height >= 500) { twoadic_init(); }
   /* find and count points */
   find_points();
   if(!quiet) { message(12, 0); message(2, total); }
@@ -638,6 +650,9 @@ static double choose_primes_mode(int tube)
   else
   { fixed = COST_ROW; }
   bits = (double)LONG_LENGTH * W;
+  /* the condition at 2: the rows its empty classes remove, the density
+     the survivors start from */
+  if(use2) { rows *= 1.0 - empty2; }
   for(n = 0; n < num_primes; n++)
   { double p = (double)prec[n].p;
     logr[n] = (prec[n].r > 0.0) ? -log(prec[n].r) : 1.0e9;
@@ -661,7 +676,7 @@ static double choose_primes_mode(int tube)
   if(pin1 >= 0)
   { n1lo = n1hi = (pin1 < n1hi) ? pin1 : n1hi; }
   for(n1 = n1lo; n1 <= n1hi; n1++)
-  { double cost1 = 0.0, setup1 = 0.0, rho1 = 1.0, s1;
+  { double cost1 = 0.0, setup1 = 0.0, rho1 = use2 ? density2 : 1.0, s1;
     long n2lo, n2hi, ne2 = 0;
     for(n = 0; n < num_primes; n++) { used[n] = 0; }
     for(k = 0; k < n1; k++)
@@ -969,7 +984,7 @@ void find_points(void)
   init_sieve();
   if(sieve_primes3 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
-  if(sieve_primes3 == 0) { tube_mode = 0; }
+  if(sieve_primes3 == 0) { tube_mode = 0; use2 = 0; }
   /* the bit array and the tables of the chunks */
   init_sift();
   /* deal with (0, 0, c, d) */
@@ -995,6 +1010,7 @@ void find_points(void)
 #ifdef VERBOSE
           printf(" a = %ld, b = %ld\n", aa, b);
 #endif
+          if(use2 && aa != 0 && !alive2[aa & 63][b & 63]) { continue; }
           if(sift(aa, b) && one_point) return;
         }
       }
@@ -1011,6 +1027,7 @@ void find_points(void)
 #ifdef VERBOSE
           printf(" a = %ld, b = %ld\n", a, b);
 #endif
+          if(use2 && a != 0 && !alive2[a & 63][b & 63]) { continue; }
           if(sift(a, b) && one_point) return;
         }
       }
@@ -1086,6 +1103,123 @@ void tube_init(void)
   /* a plain run may use the tube; choose_primes decides */
   tube_mode = 0;
   if(!all_points) { tube_sample(&tube_words, &tube_cells); }
+  return;
+}
+
+/* The condition at 2.  A point (a' : b' : c' : d') of K with coprime
+   integer coordinates that lifts to J satisfies the Kummer equation, and
+   A^2 = a'^3 d' + A0(a', b', c') is a square or 0, with A0 = f2 a^4 + f3
+   a^3 b + f4 a^2 b^2 + f5 a b (b^2 - a c) + f6 (b^2 - a c)^2 (the
+   identity needs a' != 0).  The sieve's triple (a, b, c) is coprime, and
+   the point's coordinates are (v a, v b, v c, u) for d = u/v.  So, mod
+   64, (a, b, c) must admit either some d with k2 d^2 + k1 d + k0 = 0 and
+   a^3 d + A0 a square residue (v odd), or, for v = 2^e, some odd t with
+   k2 t^2 + 2^e k1 t + 4^e k0 = 0 and, when e = 1, 8 (a^3 t + 2 A0) a
+   square residue (for e >= 2 the square condition is empty).  Modulo 64
+   the admitted c form one word, which is the fill of the bit array for
+   the row (a, b); rows whose class admits no c are skipped.  The table:
+   sol[k2][k1][k0] holds the d with k2 d^2 + k1 d + k0 = 0 mod 64, built
+   by running over (k2, k1, d); the cases v = 2^e use it with k1, k0
+   scaled.  Rows with a = 0 keep the plain condition (not all even). */
+/* the table for the modulus m (16 or 64; a word holds the 64 residues
+   of c, the pattern repeated for m = 16); returns the number of admitted
+   triples not all even, and counts the empty classes of (a, b) */
+static long twoadic_table(long m, bit_array masks[64][64],
+                          unsigned char alive[64][64], long *empty)
+{
+  bit_array *sol = (bit_array *)malloc(m*m*m*sizeof(bit_array));
+  long fm[7], km[5][5][5], k2, k1, d, i, j, k, a2, b2, c2, mm = m - 1;
+  long count = 0;
+  int sq[64];
+  bit_array odd = 0, all = (m == 64) ? ~(bit_array)0 : ((1UL << m) - 1);
+  if(sol == NULL) { error(7); }
+  for(d = 1; d < m; d += 2) { odd |= (1UL << d); }
+  for(i = 0; i < m; i++) { sq[i] = 0; }
+  for(i = 0; i < m; i++) { sq[(i*i) & mm] = 1; }
+  for(i = 0; i < m*m*m; i++) { sol[i] = 0; }
+  for(k2 = 0; k2 < m; k2++)
+    for(k1 = 0; k1 < m; k1++)
+      for(d = 0; d < m; d++)
+      { long v = (k2*d*d + k1*d) & mm;
+        sol[(k2*m + k1)*m + ((m - v) & mm)] |= (1UL << d);
+      }
+  for(i = 0; i <= 6; i++) { fm[i] = mpz_fdiv_ui(&coeffs[i], m); }
+  for(i = 0; i < 5; i++) for(j = 0; j < 5; j++) for(k = 0; k < 5; k++) { km[i][j][k] = 0; }
+  km[4][0][0] = mpz_fdiv_ui(&k400, m); km[3][1][0] = mpz_fdiv_ui(&k310, m);
+  km[3][0][1] = mpz_fdiv_ui(&k301, m); km[2][2][0] = mpz_fdiv_ui(&k220, m);
+  km[2][1][1] = mpz_fdiv_ui(&k211, m); km[2][0][2] = mpz_fdiv_ui(&k202, m);
+  km[1][3][0] = mpz_fdiv_ui(&k130, m); km[1][2][1] = mpz_fdiv_ui(&k121, m);
+  km[1][1][2] = mpz_fdiv_ui(&k112, m); km[1][0][3] = mpz_fdiv_ui(&k103, m);
+  km[0][4][0] = mpz_fdiv_ui(&k040, m); km[0][3][1] = mpz_fdiv_ui(&k031, m);
+  km[0][2][2] = mpz_fdiv_ui(&k022, m); km[0][1][3] = mpz_fdiv_ui(&k013, m);
+  km[0][0][4] = mpz_fdiv_ui(&k004, m);
+  *empty = 0;
+  for(a2 = 0; a2 < m; a2++)
+  { long ap[5], bp[5], cp[5];
+    ap[0] = 1; for(i = 1; i < 5; i++) { ap[i] = (ap[i-1]*a2) & mm; }
+    for(b2 = 0; b2 < m; b2++)
+    { bit_array mask = 0;
+      bp[0] = 1; for(i = 1; i < 5; i++) { bp[i] = (bp[i-1]*b2) & mm; }
+      for(c2 = 0; c2 < m; c2++)
+      { long k0 = 0, kk, A0, a3, e;
+        int ok = 0;
+        bit_array S;
+        if(((a2 | b2 | c2) & 1) == 0) { continue; }
+        cp[0] = 1; for(i = 1; i < 5; i++) { cp[i] = (cp[i-1]*c2) & mm; }
+        for(i = 0; i < 5; i++)
+          for(j = 0; i + j < 5; j++)
+          { k = 4 - i - j;
+            k0 = (k0 + km[i][j][k]*ap[i]*bp[j]*cp[k]) & mm;
+          }
+        k1 = (m - ((4*ap[3]*fm[0] + 2*ap[2]*b2*fm[1] + 4*ap[2]*c2*fm[2]
+                    + 2*a2*b2*c2*fm[3] + 4*a2*cp[2]*fm[4] + 2*b2*cp[2]*fm[5]
+                    + 4*cp[3]*fm[6]) & mm)) & mm;
+        k2 = (bp[2] + m*4 - 4*a2*c2) & mm;
+        kk = (bp[2] + m*4 - a2*c2) & mm;
+        A0 = (fm[2]*ap[4] + fm[3]*ap[3]*b2 + fm[4]*ap[2]*bp[2] + fm[5]*a2*b2*kk
+              + fm[6]*kk*kk) & mm;
+        a3 = ap[3];
+        /* v odd: some d */
+        S = sol[(k2*m + k1)*m + k0];
+        for(d = 0; d < m && !ok; d++)
+        { if((S >> d) & 1) { ok = sq[(a3*d + A0) & mm]; } }
+        /* v = 2: some odd t */
+        if(!ok)
+        { S = sol[(k2*m + ((2*k1) & mm))*m + ((4*k0) & mm)] & odd;
+          for(d = 1; d < m && !ok; d += 2)
+          { if((S >> d) & 1) { ok = sq[(8*(a3*d + 2*A0)) & mm]; } }
+        }
+        /* v = 4, ..., m: some odd t, no square condition */
+        for(e = 2; e <= 6 && !ok; e++)
+        { S = sol[(k2*m + ((k1 << e) & mm))*m + ((k0 << (2*e)) & mm)] & odd;
+          ok = (S != 0);
+        }
+        if(ok) { mask |= (1UL << c2); count++; }
+      }
+      /* the pattern over the 64 residues of a word */
+      if(m < 64) { for(i = m; i < 64; i += m) { mask |= mask << m; } }
+      masks[a2][b2] = mask & ((m < 64) ? ~(bit_array)0 : all);
+      alive[a2][b2] = (mask != 0);
+      if(mask == 0) { (*empty)++; }
+    }
+  }
+  free(sol);
+  return(count);
+}
+
+void twoadic_init(void)
+{
+  static bit_array masks16[64][64];
+  static unsigned char alive16[64][64];
+  long count, empty;
+  /* the modulus 16 first, cheap: when it admits every class (f a square
+     modulo 4, as on the record curve), the modulus 64 does too */
+  count = twoadic_table(16, masks16, alive16, &empty);
+  if(count == 16*16*16 - 8*8*8) { use2 = 0; return; }
+  count = twoadic_table(64, mask2, alive2, &empty);
+  density2 = (double)count / (double)(64*64*64 - 32*32*32);
+  empty2 = (double)empty / (double)(64*64);
+  use2 = 1;
   return;
 }
 
@@ -1567,6 +1701,10 @@ void message(long n, long total)
             { printf("Sieving in the tube of the bound on the fourth coordinate:\n");
               printf("about %.2f words per row, %.2f cells of the analysis per row.\n",
                      tube_words, tube_cells);
+            }
+            if(use2)
+            { printf("The condition at 2 admits %.3f of the classes mod 64 and empties %.3f of the rows.\n",
+                     density2, empty2);
             }
             printf("%ld primes used for the first stage of sieving,\n",
                    sieve_primes1);
