@@ -89,10 +89,12 @@ long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
 #define COST_TWORD   12.0  /* a word the tube leaves, besides its tests */
 #define COST_TTEST    4.0  /* one test of such a word (no early exit) */
 #define COST_TROW    45.0  /* a row with words in the tube: the set-up */
-#define COST_RROW   110.0  /* a row's real region (row_region) */
-#define COST_RCUT    60.0  /* the cut of a row's tube words to it (row_cut) */
-#define COST_RANGE   40.0  /* a range of words of the region, besides its passes */
-#define COST_PASS    15.0  /* one pass over such a range, besides its words */
+#define COST_RROW    40.0  /* a row's real region (row_region) ... */
+#define COST_REXCL   15.0  /* ... plus this per interval of c it excludes
+                              (two per interval where f is negative) */
+#define COST_RCUT    30.0  /* the cut of a row's tube words to it (row_cut) */
+#define COST_RANGE   20.0  /* a range of words of the region, besides its passes */
+#define COST_PASS     5.0  /* one pass over such a range, besides its words */
 #define COST_TABLE   13.0  /* one word of a sieve table at set-up */
 #define COST_INIT   110.0  /* one class (1, b, c) of the exact table of a
                               prime whose rate was sampled, at set-up */
@@ -800,6 +802,7 @@ static double choose_primes_mode(int mode, int cut)
                    ? floor(sqrt((double)height)) + 1.0 : (double)(height + 1));
   double bits;                                      /* bits per row */
   double best = -1.0, fixed, passx = 0.0;   /* per row; passx per pass */
+  double rrow = COST_RROW + COST_REXCL * 2.0 * (double)num_neg;   /* a row's real region */
   long b1 = 0, b2 = 0, b3 = 0;
   long n1lo, n1hi, pin1 = sieve_primes1;
   double logr[NUM_PRIMES], tabcost[NUM_PRIMES], initcost[NUM_PRIMES];
@@ -814,12 +817,12 @@ static double choose_primes_mode(int mode, int cut)
   { W = cut ? tube_words_cut : tube_words;
     if(W < 0.01) { W = 0.01; }
     pin1 = 0;
-    fixed = tube_cells * COST_CELL + tube_rows * (COST_TROW + (cut ? COST_RROW + COST_RCUT : 0.0))
+    fixed = tube_cells * COST_CELL + tube_rows * (COST_TROW + (cut ? rrow + COST_RCUT : 0.0))
             + W * COST_TWORD;
   }
   else if(mode == 2)
   { W = (reg_words > 0.01) ? reg_words : 0.01;
-    fixed = COST_RROW + reg_rows * COST_ROW + reg_ranges * COST_RANGE;
+    fixed = rrow + reg_rows * COST_ROW + reg_ranges * COST_RANGE;
     passx = reg_ranges * COST_PASS;
   }
   else
