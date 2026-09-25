@@ -15,8 +15,8 @@ The program needs the GNU gmp library. Build and test it with
 and install the executable in /usr/local/bin with `make install-bin`.
 The default build is portable; `make VECTOR=avx2 j-points` (or `sse2`)
 builds the sieve's passes over the bit array with vectors of four (two)
-words, which is faster on a machine with that instruction set and does not
-run on one without.
+words, which can be faster on a machine with that instruction set (the
+change log has the measurements) and does not run on one without.
 `make test` runs seven suites and fails if any of them does: test1, one curve
 with many points at height 2000; test2, 61 curves of every kind (testcurves2)
 at heights up to 4500, whose reference is the program's output checked by an
@@ -252,9 +252,11 @@ sieve together.
     at most h can exist (see "How the program works"); rigorous bounds, so
     the points are the same. 1.3x to 14x at 2000 on the test curves, more
     at larger height bounds; nothing for `-a`.
-  + The passes of the sieve over the bit array can be built with vectors
-    of two or four words (`make VECTOR=sse2` or `avx2`), behind a
-    compile-time switch: 1.2x on `-a` runs with AVX2, 1.1x with SSE2.
+  + The passes of the sieve over the bit array can be built with vectors of
+    two or four words (`make VECTOR=sse2` or `avx2`), behind a compile-time
+    switch: 1.2x on `-a` runs with AVX2 on a recent laptop; SSE2 gave 1.1x
+    there and lost 0.1-0.2x on an older desktop (Ivy Bridge), so measure
+    before choosing it.
   + A condition at 2: a point with coprime integer coordinates satisfies
     the Kummer equation and has a certain square among its coordinates
     (the quantity A^2 of the lifting test), so a class of (a, b, c) modulo
@@ -265,11 +267,12 @@ sieve together.
     500 and more, and only when it admits less than everything modulo 16.
     1.5x on `-a` runs of small-coefficient curves, 1.1x on #28, nothing on
     the record curve (f is a square modulo 4 there).
-  + Threads (`-t`): the values of the first coordinate are handed out to
-    the threads in order, each sieves its rows with its own state, and the
+  + Threads (`-t`): the values of the first coordinate are handed out to the
+    threads in order, each sieves its rows with its own state, and the
     points of each value are printed in order, so the output is that of a
     single thread. Four times faster with eight threads on the record curve
-    on a laptop with two performance and eight efficiency cores.
+    on a laptop with two performance and eight efficiency cores, 2.6-2.8x
+    with three threads on a four-core desktop, plain runs included.
 
 Michael Stoll, October 1998 - September 2026.
 
