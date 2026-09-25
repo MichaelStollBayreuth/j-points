@@ -41,6 +41,11 @@
 #        those of the -a runs of the same curve at the same height bound,
 #        cut to g m <= h and |d| <= bound4)
 # 45     the report of a run with -w, the line naming the version dropped
+# 46-48  a sextic with f0 = 0 and f1 = -1, searched as a monic quintic
+#        (x -> 1/x and x -> -x) with the points transformed back: the
+#        report of the run, the points with -a (the same set as before the
+#        transformation, checked against the unsieved run and Magma), and
+#        -1 (the first point of the transformed search)
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
 # whose target fails with 1 when they differ)
@@ -98,3 +103,6 @@ t '21 116 171 128 55 12 1' 60 -q -w 20
 t '21 116 171 128 55 12 1' 20 -q -w 500
 t '1 178 817 -274 16 1' 60 -q -a -w 100000
 f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -w 50 -n 3 -M 6 -N 9
+f "grep -v '^This is j-points'" '0 -1 2 -1 3 1 1' 100 -n 3 -M 6 -N 9
+t '0 -1 2 -1 3 1 1' 60 -q -a
+t '0 -1 2 -1 3 1 1' 300 -q -1

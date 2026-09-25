@@ -772,3 +772,40 @@ Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Ma
 2522 candidates survived the third stage.
 
 Found 6 rational points on K lifting to J.
+# <0 -1 2 -1 3 1 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = x^6 + x^5 + 3 x^4 - x^3 + 2 x^2 - x
+
+max. Height = 100
+The search runs on y^2 = x^5 + 2 x^4 + x^3 + 3 x^2 - x + 1
+(the curve under x -> 1/x and x -> -x), a monic quintic, and the points are
+transformed back.
+
+Sieving in the tube of the bound on the fourth coordinate:
+about 3.87 words per row, 0.12 cells of the analysis per row.
+0 primes used for the first stage of sieving,
+6 primes used for the first two stages together,
+9 primes used for all three stages together.
+Sieving primes:
+ First stage: 
+ Second stage: 13, 11, 23, 5, 17, 29
+ Third stage: 37, 53, 59
+Probabilities: Min(163) = 0.336737, Cut2(29) = 0.423675, Cut3(59) = 0.391700, Max(3) = 0.777778
+
+(0, 0, 4, -11)
+(0, 1, 0, 0)
+
+7787 candidates survived the first stage,
+2239 candidates survived the second stage,
+111 candidates survived the third stage.
+
+Found 2 rational points on K lifting to J.
+# <0 -1 2 -1 3 1 1> <60> <-q> <-a>
+(0, 0, 4, -11)
+(0, 1, 0, 0)
+# <0 -1 2 -1 3 1 1> <300> <-q> <-1>
+(0, 0, 4, -11)
