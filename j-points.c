@@ -26,10 +26,12 @@
  *    checks its survivors exactly                                     *
  ***********************************************************************/
 
+#define _GNU_SOURCE   /* asprintf */
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <pthread.h>
 #include <gmp.h>
 
 #include "j-points.h"
@@ -119,13 +121,15 @@ bit_array *sieve_tab[NUM_PRIMES];
    and continues the pattern beyond the period the walk uses. */
 
 MP_INT coeffs[7];  /* The coefficients of f */
-MP_INT bc[7]; /* A helper array */
-MP_INT fff, tmp, tmp2, tmp3, ddd;   /* Some multi-precision integer variables */
+/* the multi-precision temporaries of the lifting test, one set per
+   thread (init_thread_mpz) */
+_Thread_local MP_INT bc[7]; /* A helper array */
+_Thread_local MP_INT fff, tmp, tmp2, tmp3, ddd;   /* Some multi-precision integer variables */
 MP_INT k400, k310, k301, k220, k211, k202, k130, k121, k112, k103,
        k040, k031, k022, k013, k004;
         /* coefficients for Kummer equation */
-MP_INT x12, x22, x32;
-MP_INT kummer[3];
+_Thread_local MP_INT x12, x22, x32;
+_Thread_local MP_INT kummer[3];
 
 /* The tube (see j-sift.c): the coefficients of the Kummer equation and
    of f as doubles, for the bounds per row, and whether the tube is used
@@ -147,7 +151,7 @@ bit_array mask2[64][64];
 unsigned char alive2[64][64];
 int use2 = 0;
 double density2 = 1.0, empty2 = 0.0;
-MP_INT cpf1, cpf2, cpf3, cpfa, cpfb, cpfc;
+_Thread_local MP_INT cpf1, cpf2, cpf3, cpfa, cpfb, cpfc;
 
 long degree;
 long coeffs_mod_p[NUM_PRIMES][8];
@@ -166,13 +170,27 @@ int all_points;       /* Indicates that the `-a' option was given */
 char *print_format;   /* The printf format for printing points */
 long array_size;      /* The size of the survivors array (in longs) */
 
-bit_array *survivors; /* In this array the sieving takes place */
+_Thread_local bit_array *survivors; /* In this array the sieving takes place */
 
-long num_surv1 = 0;   /* Used to count the survivors of the first stage */
-long num_surv2 = 0;   /* Used to count the survivors of the second stage */
-long num_surv3 = 0;   /* Used to count the survivors of the third stage */
+/* the counters, per thread, and their sums over the threads */
+_Thread_local long num_surv1 = 0;   /* Used to count the survivors of the first stage */
+_Thread_local long num_surv2 = 0;   /* Used to count the survivors of the second stage */
+_Thread_local long num_surv3 = 0;   /* Used to count the survivors of the third stage */
+_Thread_local long total = 0;       /* Counts the points found */
+long tot_surv1 = 0, tot_surv2 = 0, tot_surv3 = 0, tot_points = 0;
 
-long total = 0;       /* Counts the points found */
+/* The threads (-t): the values of a are the units of work, handed out in
+   order from a counter; each thread sieves its a with its own state and
+   collects the points of that a in a buffer, and the buffers are printed
+   in the order of the a, so that the output is that of one thread. */
+long num_threads = 1;
+static pthread_mutex_t out_lock = PTHREAD_MUTEX_INITIALIZER;
+static long next_work = 0;           /* the next unit to hand out */
+static long next_print = 0;          /* the next unit to print */
+typedef struct outnode { long unit; char *text; struct outnode *next; } outnode;
+static outnode *out_list = NULL;     /* finished units not yet printed, by unit */
+static _Thread_local char *obuf = NULL;       /* the buffer of the unit in work */
+static _Thread_local size_t olen = 0, ocap = 0;
 
 long bound;
 
@@ -184,6 +202,7 @@ bit_array begmask, endmask;  /* Bit masks for the beginning and end of
  **************************************************************************/
 
 void init_main(void);
+void init_thread_mpz(void);
 void find_points(void);
 void read_input(long, char *argv[]);
 char *scan_mpz(char*, MP_INT*);
@@ -234,7 +253,7 @@ int main(int argc, char *argv[])
   if(height >= 500) { twoadic_init(); }
   /* find and count points */
   find_points();
-  if(!quiet) { message(12, 0); message(2, total); }
+  if(!quiet) { message(12, 0); message(2, 0); }
   return(0);
 }
 
@@ -324,6 +343,13 @@ void read_input(long argc, char *argv[])
           one_point = 1;
           i++;
           break;
+        case 't': /* the number of threads */
+          if(argc == i) error(6);
+          i++;
+          if(sscanf(argv[i], " %ld", &num_threads) != 1) error(6);
+          if(num_threads < 1) error(6);
+          i++;
+          break;
         case 'p': /* set number of primes used */
           if(argc == i) error(6);
           i++;
@@ -334,6 +360,9 @@ void read_input(long argc, char *argv[])
           break;
         default: error(6);
   } } }
+  /* one point is found by one thread: the first in the order of the
+     search */
+  if(one_point) { num_threads = 1; }
   /* the numbers of sieving primes cannot exceed the number of primes
      considered, and a stage cannot have more primes than the stages
      after it, whatever the order of -n, -M, -N and -p */
@@ -371,23 +400,31 @@ char *scan_mpz(char *s, MP_INT *x)
  * initialisations                                                        *
  **************************************************************************/
 
+/* the multi-precision temporaries of the calling thread */
+void init_thread_mpz(void)
+{
+  long n;
+  for(n = 0; n <= 6 ; n++) { mpz_init(&bc[n]); }
+  for(n = 0; n < 3; n++) mpz_init(&kummer[n]);
+  mpz_init(&fff);
+  mpz_init(&tmp); mpz_init(&tmp2); mpz_init(&tmp3); mpz_init(&ddd);
+  mpz_init(&x12); mpz_init(&x22); mpz_init(&x32);
+  mpz_init(&cpf1); mpz_init(&cpf2); mpz_init(&cpf3);
+  mpz_init(&cpfa); mpz_init(&cpfb); mpz_init(&cpfc);
+  return;
+}
+
 void init_main(void)
 {
   bit_array bit;
   long n;
   /* initialise multi-precision integer variables */
-  for(n = 0; n <= 6 ; n++)
-  { mpz_init(&coeffs[n]); mpz_init(&bc[n]); }
-  for(n = 0; n < 3; n++) mpz_init(&kummer[n]);
-  mpz_init(&fff);
-  mpz_init(&tmp); mpz_init(&tmp2); mpz_init(&tmp3); mpz_init(&ddd);
+  for(n = 0; n <= 6 ; n++) { mpz_init(&coeffs[n]); }
   mpz_init(&k400); mpz_init(&k310); mpz_init(&k301); mpz_init(&k220);
   mpz_init(&k211); mpz_init(&k202); mpz_init(&k130); mpz_init(&k121);
   mpz_init(&k112); mpz_init(&k103); mpz_init(&k040); mpz_init(&k031);
   mpz_init(&k022); mpz_init(&k013); mpz_init(&k004);
-  mpz_init(&x12); mpz_init(&x22); mpz_init(&x32);
-  mpz_init(&cpf1); mpz_init(&cpf2); mpz_init(&cpf3);
-  mpz_init(&cpfa); mpz_init(&cpfb); mpz_init(&cpfc);
+  init_thread_mpz();
 
   /* intialise bits[] */
   bit = (bit_array)1;
@@ -974,9 +1011,12 @@ static long row_step(long a)
   return(m);
 }
 
+static long unit_a(long);
+static void run_units(long);
+static void emit(char *);
+
 void find_points(void)
 {
-  long a, b;
 
   /* initialise is_f_square[][] */
   init_fmodpsquare();
@@ -997,41 +1037,97 @@ void find_points(void)
   }
   /* deal with `double points' */
   if(find_double_points() && one_point) return;
-  if(degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
-  { /* can take only squares for the first coordinate */
-    long aa;
-    for(a = 0; (aa = a*a) <= height; a++)
-    { long m = row_step(aa), b0 = (a == 0) ? m : -(height/m)*m;
-      if(tube_mode)
-      { if(sift_tube(aa, b0, m) && one_point) return; }
-      else
-      { for(b = b0; b <= height; b += m)
-        {
-#ifdef VERBOSE
-          printf(" a = %ld, b = %ld\n", aa, b);
-#endif
-          if(use2 && aa != 0 && !alive2[aa & 63][b & 63]) { continue; }
-          if(sift(aa, b) && one_point) return;
-        }
-      }
-    }
+  /* the main search, the units of work being the values of a */
+  { long units = (degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
+                 ? (long)floor(sqrt((double)height)) + 1 : height + 1;
+    while(units > 0 && unit_a(units - 1) > height) { units--; }
+    run_units(units);
   }
-  else
-  { for(a = 0; a <= height; a++)
-    { long m = row_step(a), b0 = (a == 0) ? m : -(height/m)*m;
-      if(tube_mode)
-      { if(sift_tube(a, b0, m) && one_point) return; }
-      else
-      { for(b = b0; b <= height; b += m)
-        {
+  return;
+}
+
+/* the first coordinate of the unit of work k: k itself, or k^2 when f is
+   monic of degree 5 */
+static long unit_a(long k)
+{ return((degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0) ? k*k : k); }
+
+/* the rows of one a: those the primes without a point at infinity leave
+   (row_step) and the condition at 2 leaves, in the tube or the box;
+   returns 1 when one point is enough and one was found */
+static int run_a(long a)
+{
+  long m = row_step(a), b0 = (a == 0) ? m : -(height/m)*m, b;
+  if(tube_mode) { return(sift_tube(a, b0, m)); }
+  for(b = b0; b <= height; b += m)
+  {
 #ifdef VERBOSE
-          printf(" a = %ld, b = %ld\n", a, b);
+    printf(" a = %ld, b = %ld\n", a, b);
 #endif
-          if(use2 && a != 0 && !alive2[a & 63][b & 63]) { continue; }
-          if(sift(a, b) && one_point) return;
-        }
-      }
-    }
+    if(use2 && a != 0 && !alive2[a & 63][b & 63]) { continue; }
+    if(sift(a, b) && one_point) { return(1); }
+  }
+  return(0);
+}
+
+/* a unit of work done by a thread: its points, if any, handed to the
+   printer, which prints the finished units in order */
+static void finish_unit(long unit)
+{
+  outnode *node = (outnode *)malloc(sizeof(outnode)), **pp;
+  if(node == NULL) { error(7); }
+  node->unit = unit;
+  node->text = obuf; obuf = NULL; olen = ocap = 0;
+  pthread_mutex_lock(&out_lock);
+  for(pp = &out_list; *pp != NULL && (*pp)->unit < unit; pp = &(*pp)->next) ;
+  node->next = *pp; *pp = node;
+  while(out_list != NULL && out_list->unit == next_print)
+  { outnode *done = out_list;
+    if(done->text != NULL) { fputs(done->text, stdout); free(done->text); }
+    out_list = done->next;
+    free(done);
+    next_print++;
+  }
+  pthread_mutex_unlock(&out_lock);
+  return;
+}
+
+/* a thread: units from the counter until they run out */
+static long work_units;
+static void *worker(void *arg)
+{
+  long k;
+  if(arg != NULL)   /* a thread of its own, not the main one */
+  { init_thread_mpz(); init_thread_sieve(); }
+  while((k = __atomic_fetch_add(&next_work, 1, __ATOMIC_RELAXED)) < work_units)
+  { run_a(unit_a(k));
+    finish_unit(k);
+  }
+  pthread_mutex_lock(&out_lock);
+  tot_surv1 += num_surv1; tot_surv2 += num_surv2; tot_surv3 += num_surv3;
+  tot_points += total;
+  pthread_mutex_unlock(&out_lock);
+  return(NULL);
+}
+
+static void run_units(long units)
+{
+  work_units = units;
+  if(num_threads == 1)
+  { long k;
+    for(k = 0; k < units; k++)
+    { if(run_a(unit_a(k)) && one_point) { break; } }
+    tot_surv1 = num_surv1; tot_surv2 = num_surv2; tot_surv3 = num_surv3;
+    tot_points = total;
+    return;
+  }
+  { pthread_t *th = (pthread_t *)malloc(num_threads*sizeof(pthread_t));
+    long t;
+    if(th == NULL) { error(7); }
+    for(t = 1; t < num_threads; t++)
+    { if(pthread_create(&th[t], NULL, worker, (void *)th) != 0) { error(8); } }
+    worker(NULL);
+    for(t = 1; t < num_threads; t++) { pthread_join(th[t], NULL); }
+    free(th);
   }
   return;
 }
@@ -1502,8 +1598,40 @@ void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
     { fmt[++j] = 'Z'; fmt[++j] = 'd'; i += 2; }
   }
   fmt[j] = 0;
-  gmp_printf(fmt, a, b, c, d);
+  if(num_threads == 1) { gmp_printf(fmt, a, b, c, d); }
+  else
+  { char *s;
+    if(gmp_asprintf(&s, fmt, a, b, c, d) < 0) { error(7); }
+    emit(s);
+    free(s);
+  }
   free(fmt);
+}
+
+/* a point found: printed, or, with threads, appended to the buffer of
+   the unit of work in hand (see find_points) */
+static void emit(char *s)
+{
+  size_t l = strlen(s);
+  if(num_threads == 1) { fputs(s, stdout); return; }
+  if(olen + l + 1 > ocap)
+  { ocap = 2*(olen + l + 1) + 256;
+    obuf = (char *)realloc(obuf, ocap);
+    if(obuf == NULL) { error(7); }
+  }
+  memcpy(obuf + olen, s, l + 1);
+  olen += l;
+  return;
+}
+
+static void emit_point(long a, long b, long c, long d)
+{
+  char *s;
+  if(num_threads == 1) { printf(print_format, a, b, c, d); return; }
+  if(asprintf(&s, print_format, a, b, c, d) < 0) { error(7); }
+  emit(s);
+  free(s);
+  return;
 }
 
 int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
@@ -1528,7 +1656,7 @@ int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
 #ifdef VERBOSE
       printf("lifts.\n");
 #endif
-      printf(print_format, a, b, c, d);
+      emit_point(a, b, c, d);
       total++;
       return(1);
     }
@@ -1695,7 +1823,7 @@ void message(long n, long total)
   switch(n)
   { case 0: printf("\n%s\n", J_POINTS_VERSION); break;
     case 1: printf("\nprob = 0, hence no solutions.\n"); break;
-    case 2: printf("\nFound %ld rational points on K lifting to J.\n", total);
+    case 2: printf("\nFound %ld rational points on K lifting to J.\n", tot_points);
             break;
     case 4: if(tube_mode)
             { printf("Sieving in the tube of the bound on the fourth coordinate:\n");
@@ -1754,9 +1882,9 @@ void message(long n, long total)
                prec[num_primes-1].p, prec[num_primes-1].r);
         break;
       }
-    case 12: printf("\n%ld candidates survived the first stage,\n", num_surv1);
-             printf("%ld candidates survived the second stage,\n", num_surv2);
-             printf("%ld candidates survived the third stage.\n", num_surv3);
+    case 12: printf("\n%ld candidates survived the first stage,\n", tot_surv1);
+             printf("%ld candidates survived the second stage,\n", tot_surv2);
+             printf("%ld candidates survived the third stage.\n", tot_surv3);
              break;
   }
   fflush(stdout);
@@ -1774,12 +1902,14 @@ void error(long errno)
             printf("  Height must be in [1, %ld].\n\n", MAX_HEIGHT); break;
     case 5: printf("\nThe polynomial must have degree at least 5.\n\n"); break;
     case 7: printf("\nNot enough memory.\n\n"); break;
+    case 8: printf("\nCould not start a thread.\n\n"); break;
     case 6: printf("\nWrong syntax for optional arguments:\n\n");
     case 2:
       printf("\n");
       printf("Usage: j-points 'a_0 a_1 ... a_d' max_height\n");
       printf("                [-n num_primes1] [-M num_primes2] [-N num_primes3]\n");
-      printf("                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]\n");
+      printf("                [-p num_primes] [-s size] [-t threads] [-f format]\n");
+      printf("                [-1] [-q] [-a]\n");
       break;
   }
   fflush(stdout);

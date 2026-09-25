@@ -538,7 +538,8 @@ The polynomial must have degree at least 5.
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
-                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-1] [-q] [-a]
 # <1 2 3 4 5> <100>
 
 The polynomial must have degree at least 5.
@@ -564,7 +565,8 @@ Wrong syntax for optional arguments:
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
-                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-n>
 
 Wrong syntax for optional arguments:
@@ -572,7 +574,8 @@ Wrong syntax for optional arguments:
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
-                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-p> <0>
 
 Wrong syntax for optional arguments:
@@ -580,7 +583,8 @@ Wrong syntax for optional arguments:
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
-                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-s> <0>
 
 Wrong syntax for optional arguments:
@@ -588,7 +592,8 @@ Wrong syntax for optional arguments:
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
-                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-1] [-q] [-a]
 # <21 116 171 128 55 12 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
 
 

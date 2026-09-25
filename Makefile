@@ -27,7 +27,7 @@ INSTALL = cp
 
 INSTALL_DIR = /usr/local
 
-CCFLAGS0 = -Wall -O2 -fomit-frame-pointer
+CCFLAGS0 = -Wall -O2 -fomit-frame-pointer -pthread
 CCFLAGS =
 # The width of the sieve's passes, in words (see VW in j-points.h): the
 # default is the scalar walk; "make VECTOR=avx2" builds the passes with
@@ -37,7 +37,7 @@ VECTOR =
 VFLAGS_avx2 = -DVW=4 -mavx2
 VFLAGS_sse2 = -DVW=2 -msse2
 VFLAGS = ${VFLAGS_${VECTOR}}
-LFLAGS = -lgmp -lgcc -lc -lm
+LFLAGS = -pthread -lgmp -lgcc -lc -lm
 
 VERSION = 3.0
 
@@ -50,7 +50,7 @@ DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md gpl-2.0.txt \
 
 # Temporary files that are generated during build
 # and can be removed afterwards
-TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out test4.out testrich.out \
+TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out test4.out testrich.out testthreads.out \
             testbrute.out testbrute-sieved.out testbrute-exact.out testbrute-failed.out \
             verify-test2-failed.out verify-test3.m
 
@@ -68,7 +68,7 @@ FAIL = { echo ${FAILED}; false; }
 # differs from its reference prints "Test failed!" and fails its target;
 # "make test" runs every suite whatever the earlier ones did and fails at
 # the end if any of them failed.
-TESTS = test1 test2 test3 test4 testbrute testrich
+TESTS = test1 test2 test3 test4 testbrute testrich testthreads
 
 .PHONY: test
 test:
@@ -123,6 +123,17 @@ testbrute: j-points testcurves2 testbrute.sh
 testrich: j-points testcurves-rich testbase-rich test2.sh
 	JPOPTS=-a CURVES=testcurves-rich ./test2.sh > testrich.out 2>&1
 	cmp -s testbase-rich testrich.out || ${FAIL}
+
+# The threads: test1 with two, test2 and testrich with three, against the
+# same references (the points are printed in the order of the search
+# whatever the number of threads).
+testthreads: j-points testbase testbase2 testbase-rich test2.sh
+	./j-points '21 116 171 128 55 12 1' 2000 -q -t 2 > testthreads.out
+	cmp -s testbase testthreads.out || ${FAIL}
+	JPOPTS=-t\ 3 ./test2.sh > testthreads.out 2>&1
+	cmp -s testbase2 testthreads.out || ${FAIL}
+	JPOPTS=-a\ -t\ 3 CURVES=testcurves-rich ./test2.sh > testthreads.out 2>&1
+	cmp -s testbase-rich testthreads.out || ${FAIL}
 
 install-bin: j-points
 	${INSTALL} j-points ${INSTALL_DIR}/bin/

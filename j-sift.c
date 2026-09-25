@@ -94,23 +94,32 @@ static unsigned short *res0;
    (1/a or 1/b mod p), computed with divisions when a bit of the row first
    gets here (most rows never do), by row3_setup. */
 static unsigned char all_ones[MAX_PRIME_EVEN];  /* the row for a = b = 0 */
-static unsigned char *tab3[NUM_PRIMES];  /* per third-stage prime: the row */
-static long mult3[NUM_PRIMES];           /* ... and the factor */
+static _Thread_local unsigned char *tab3[NUM_PRIMES];  /* per third-stage prime: the row */
+static _Thread_local long mult3[NUM_PRIMES];           /* ... and the factor */
 static unsigned long recip3[NUM_PRIMES];
 /* recip3[m] = ceil(2^32 / p) for the m-th third-stage prime p: for
    0 <= x < 2^16, (x * recip3[m]) >> 32 is exactly x / p, since x / p is
    either an integer or at least 1/p away from one, and the error of the
    product is below 2^-16.  So x mod p costs two multiplications. */
 #define MOD3(x, m) ((x) - pr[sieve_primes2 + (m)] * (long)(((x) * recip3[m]) >> 32))
-static long row3_a = -1, row3_b = 0;     /* the row the data is for */
+static _Thread_local long row3_a = -1, row3_b = 0;     /* the row the data is for */
 
 /* the sieving primes, the lengths of their table rows and of the block
    of rows of one residue class of a, and the table rows of the current
    (a, b): rowptr[n] for the n-th prime */
 static long pr[NUM_PRIMES], rowlen[NUM_PRIMES], blocklen[NUM_PRIMES];
 static long period[NUM_PRIMES];      /* the period of the walk, see above */
-static bit_array *rowptr[NUM_PRIMES];
+static _Thread_local bit_array *rowptr[NUM_PRIMES];
 static long w_low_all, w_high_all;   /* the words of a whole row */
+static double th, th2;               /* the height bound and its square */
+
+/* the tube's bands (see there): the words collected for the rows of the
+   band a thread analyses, per row up to TUBE_RANGES ranges [lo, hi) */
+#define TUBE_BAND 4096    /* rows analysed and then sieved together */
+#define TUBE_RANGES 8     /* word ranges kept per row; more are merged */
+static _Thread_local long band_b0;                /* the first row */
+static _Thread_local long *band_nr = NULL;        /* ranges per row */
+static _Thread_local long (*band_lo)[TUBE_RANGES], (*band_hi)[TUBE_RANGES];
 
 
 /**************************************************************************
@@ -139,14 +148,13 @@ void init_sift(void)
     recip3[n] = ((1UL << 32) + p - 1) / p;
   }
   num_chunks = CEIL(w_high - w_low, array_size);
-  /* the bit array, aligned for the vector walk and padded by a vector */
-  survivors = (bit_array *)aligned_alloc(64, ((array_size + VW)*sizeof(bit_array) + 63)/64*64);
+  th = (double)height; th2 = th*th;
+  init_thread_sieve();
   chunks = (chunk_spec *)malloc(num_chunks*sizeof(chunk_spec));
   walk = (walk_spec *)malloc((num_chunks*np1 + 1)*sizeof(walk_spec));
   res = (long *)malloc((num_chunks*npr + 1)*sizeof(long));
   res0 = (unsigned short *)malloc((array_size*npr + 1)*sizeof(unsigned short));
-  if(survivors == NULL || chunks == NULL || walk == NULL || res == NULL
-       || res0 == NULL)
+  if(chunks == NULL || walk == NULL || res == NULL || res0 == NULL)
   { error(7); }
   for(k = 0; k < num_chunks; k++)
   { chunk_spec *ch = &chunks[k];
@@ -190,10 +198,23 @@ void init_sift(void)
   return;
 }
 
+/* the state of the calling thread: the bit array (aligned for the
+   vector walk and padded by a vector) and the lists of the tube's bands */
+void init_thread_sieve(void)
+{
+  survivors = (bit_array *)aligned_alloc(64, ((array_size + VW)*sizeof(bit_array) + 63)/64*64);
+  band_nr = (long *)malloc(TUBE_BAND*sizeof(long));
+  band_lo = malloc(TUBE_BAND*TUBE_RANGES*sizeof(long));
+  band_hi = malloc(TUBE_BAND*TUBE_RANGES*sizeof(long));
+  if(survivors == NULL || band_nr == NULL || band_lo == NULL || band_hi == NULL)
+  { error(7); }
+  return;
+}
+
 /* the data of the third stage for the row (a, b), see above; the part
    that depends on a alone (its inverse mod p, or that p | a) is kept
    from row to row while a stays */
-static long inva3[NUM_PRIMES];  /* 1/a mod p, or 0 when p | a */
+static _Thread_local long inva3[NUM_PRIMES];  /* 1/a mod p, or 0 when p | a */
 static void row3_setup(long a, long b)
 {
   long m;
@@ -378,22 +399,14 @@ static inline int check_point(bit_array nums, long a, long b, long i,
 
 #define TUBE_EPS 1.5e-5   /* 15 coefficients, each with a margin of 1e-6 */
 #define TUBE_ROWS 64      /* rows of a leaf cell (16 to 128 measured much the same) */
-#define TUBE_BAND 4096    /* rows analysed and then sieved together */
-#define TUBE_RANGES 8     /* word ranges kept per row; more are merged */
 
 /* for the current a, as polynomials in (b, c) with P[j][k] the coefficient
    of b^j c^k: k0 (degree 4), k1 (3), k2 (2), and the absolute values of
    the coefficients of |k0| + h |k1| + h^2 |k2|, the scale of the errors */
-static double K0[25], K1[25], K2[25], KA[25];
-static double th, th2;              /* h and h^2 */
-static long tube_a;                 /* the current a */
+static _Thread_local double K0[25], K1[25], K2[25], KA[25];
+static _Thread_local long tube_a;   /* the current a */
 
-/* the words collected for the rows of the band: per row up to
-   TUBE_RANGES ranges [lo, hi) */
-static long band_b0;                              /* the first row */
-static long band_nr[TUBE_BAND];                   /* ranges per row */
-static long band_lo[TUBE_BAND][TUBE_RANGES], band_hi[TUBE_BAND][TUBE_RANGES];
-static int tube_counting;            /* count the words only */
+static int tube_counting;            /* count the words only (before the threads) */
 static long tube_n, tube_ncells;
 
 static void tube_a_init(long a)
@@ -486,7 +499,7 @@ static void tube_emit(long b, long i)
 /* the cell of the rows b_lo..b_hi and the words [i_lo, i_hi) */
 static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
 {
-  static double rp[25], last_rb = -1.0, last_rc = -1.0;
+  static _Thread_local double rp[25], last_rb = -1.0, last_rc = -1.0;
   tube_ncells++;
   long rows = b_hi - b_lo + 1, words = i_hi - i_lo;
   double p0[25], p1[25], p2[25], p[25], m[25];
@@ -555,6 +568,7 @@ void tube_sample(double *words_per_row, double *cells_per_row)
   long k, rows = 0, w_low = (-height)>>LONG_SHIFT, w_high = (height>>LONG_SHIFT) + 1;
   double words = 0.0, cells = 0.0;
   th = (double)height; th2 = th*th;
+  if(band_nr == NULL) { init_thread_sieve(); }
   tube_counting = 1;
   for(k = 0; k < 24; k++)
   { long a = (k * 7919L) % (height + 1), b_lo, b_hi;
@@ -584,7 +598,7 @@ void tube_sample(double *words_per_row, double *cells_per_row)
    found */
 static int tube_word(long a, long b, long i, bit_array mask, long c0)
 {
-  static long cur_chunk = 0;
+  static _Thread_local long cur_chunk = 0;
   chunk_spec *ch;
   long k, n;
   bit_array nums = mask;
@@ -617,7 +631,6 @@ static void row_setup(long a, long b);
 int sift_tube(long a, long b_first, long m)
 {
   long b_lo;
-  th = (double)height; th2 = th*th;
   tube_a_init(a);
   for(b_lo = b_first; b_lo <= height; b_lo += TUBE_BAND)
   { long b_hi = b_lo + TUBE_BAND - 1, b, k;
@@ -789,9 +802,9 @@ static int sift0(long a, long b, long k, bit_array mask, long c0)
    1/p) */
 static void row_setup(long a, long b)
 {
-  static long last_a = -1, last_b = 0, last_d = 0;
-  static long bres[NUM_PRIMES], dres[NUM_PRIMES], drow[NUM_PRIMES];
-  static double invp[NUM_PRIMES];
+  static _Thread_local long last_a = -1, last_b = 0, last_d = 0;
+  static _Thread_local long bres[NUM_PRIMES], dres[NUM_PRIMES], drow[NUM_PRIMES];
+  static _Thread_local double invp[NUM_PRIMES];
   long n, d = b - last_b;
   if(a == last_a && d > 0 && d < 3)
   { /* a step below every prime: the residues step by d */
