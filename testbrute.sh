@@ -10,8 +10,9 @@ JP=${JP:-./j-points}
 [ -x "$JP" ] || { echo "$JP: not an executable" >&2; exit 2; }
 JPOPTS=${JPOPTS:-}
 H=${H:-50}
+CURVES=${CURVES:-testcurves2}
 status=0
-grep -v '^#' testcurves2 | grep -v '^$' | while IFS=';' read -r coeffs h comment; do
+grep -v '^#' "$CURVES" | grep -v '^$' | while IFS=';' read -r coeffs h comment; do
   for opt in "" "-a"; do
     sieved=$("$JP" "$coeffs" $H -q $opt $JPOPTS | LC_ALL=C sort)
     exact=$("$JP" "$coeffs" $H -q $opt -n 0 -N 0 $JPOPTS | LC_ALL=C sort)

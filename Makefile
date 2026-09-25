@@ -36,12 +36,13 @@ VERSION = 2.1
 # Files that make up the distribution
 DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md gpl-2.0.txt \
             testbase testcurves2 testbase2 testbase3 testbase4 \
+            testcurves-rich testbase-rich \
             test2.sh test3.sh test4.sh testbrute.sh \
             verify-test2.sh verify-test3.py mkref4.m
 
 # Temporary files that are generated during build
 # and can be removed afterwards
-TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out test4.out \
+TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out test4.out testrich.out \
             testbrute.out testbrute-sieved.out testbrute-exact.out testbrute-failed.out \
             verify-test2-failed.out verify-test3.m
 
@@ -103,6 +104,14 @@ test4: j-points testbase4 testcurves2 test4.sh
 # height bound (see testbrute.sh); the script itself reports a difference.
 testbrute: j-points testcurves2 testbrute.sh
 	./testbrute.sh > testbrute.out || ${FAIL}
+
+# Twelve runs on point-rich curves from the ratpoints suites (testcurves-rich)
+# against testbase-rich, which is the output of 2.1 -- a baseline for the
+# work on the sieve, not in "make test" until verify-test2.sh has checked it
+# (CURVES=testcurves-rich REF=testbase-rich ./verify-test2.sh).
+testrich: j-points testcurves-rich testbase-rich test2.sh
+	CURVES=testcurves-rich ./test2.sh > testrich.out 2>&1
+	cmp -s testbase-rich testrich.out || ${FAIL}
 
 install-bin: j-points
 	${INSTALL} j-points ${INSTALL_DIR}/bin/
