@@ -13,7 +13,7 @@ The program needs the GNU gmp library. Build and test it with
     make test
 
 and install the executable in /usr/local/bin with `make install-bin`.
-`make test` runs five suites and fails if any of them does: test1, one curve
+`make test` runs six suites and fails if any of them does: test1, one curve
 with many points at height 2000; test2, 61 curves of every kind (testcurves2)
 at heights up to 4500, whose reference is the program's output checked by an
 unsieved run of every curve (verify-test2.sh, an hour of CPU time); test3,
@@ -21,14 +21,13 @@ the options, messages and errors, checked likewise (verify-test3.py); test4,
 the same 61 curves at height 30, with and without `-a`, against a brute force
 over every coprime triple that uses Magma's Kummer package for the points
 above a triple and their lifts (mkref4.m); and testbrute, the sieve against
-the unsieved search at height 50. Magma is only needed to regenerate
-testbase4; its own search for points is a port of j-points and is not used
-as a reference. `make testrich` runs fourteen searches with `-a` on
-point-rich curves (testcurves-rich: from the ratpoints suites, and the
-curve with 642 known rational points of Müller and Stoll, ANT 10 (2016))
-against the output of 2.1, checked by the unsieved run: the regime of the
-enumeration of points of bounded canonical height, and the baseline for
-work on the sieve.
+the unsieved search at height 50; and testrich, fourteen searches with `-a`
+on point-rich curves (testcurves-rich: from the ratpoints suites, and the
+curve with 642 known rational points of Müller and Stoll, ANT 10 (2016)),
+the regime of the enumeration of points of bounded canonical height, whose
+reference was checked by the unsieved run as well. Magma is only needed to
+regenerate testbase4; its own search for points is a port of j-points and
+is not used as a reference.
 
 Please acknowledge use of the program in published work.
 
