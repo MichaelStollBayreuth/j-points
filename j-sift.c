@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-2.1                                                        *
+ * j-points-3.0                                                        *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -23,7 +23,8 @@
  *  - the sieve: for fixed first two coordinates (a, b), the bit array *
  *    over the third coordinate c, sieved with the first-stage primes, *
  *    its surviving words tested against the second-stage primes, and  *
- *    the surviving bits handed to the exact check                     *
+ *    the surviving bits handed to the exact check; the bookkeeping   *
+ *    of a row done without integer divisions                          *
  ***********************************************************************/
 
 #include <stdlib.h>
@@ -32,26 +33,102 @@
 #include "j-points.h"
 
 
-sieve_spec sieves1[NUM_PRIMES];
-sieve_spec sieves2p[NUM_PRIMES];
-sieve_spec sieves2n[NUM_PRIMES];
+/* The row of the third coordinate is sieved in chunks of at most
+   array_size words, and the chunks are the same for every row (they do
+   not depend on a and b).  So what the sieve needs to know about a chunk
+   is computed once, by init_sift(), and not per row: for each first-stage
+   prime, where in its table row (period p words) the chunk begins and how
+   the walk over the chunk splits into a head up to the end of the table
+   row, full periods of p words and a tail; for each second-stage prime,
+   the residue of the chunk's first word. */
+typedef struct
+{ long first;  /* the table word the chunk begins with, in [1, p] */
+  long head;   /* the words up to the end of the table row (or the chunk) */
+  long nper;   /* the full periods of p words after the head */
+  long tail;   /* the words after the last full period */
+} walk_spec;
+
+typedef struct
+{ long w_low, w_high;  /* the words of the chunk: w_low <= i < w_high */
+  walk_spec *walk;     /* one per first-stage prime */
+  long *res;           /* per second-stage prime: w_low mod p */
+} chunk_spec;
+
+static chunk_spec *chunks;
+static long num_chunks;
+
+static long np2;                  /* the number of second-stage primes */
+static long p2[NUM_PRIMES];       /* the second-stage primes */
+static unsigned short *res0;
+/* res0[k*np2 + m] = k mod p2[m] for 0 <= k < array_size: with the residue
+   of the chunk's first word, the residue of any word of the chunk costs an
+   addition and a comparison instead of a division */
+
+/* the table rows of the current (a, b): row1 for the first-stage primes,
+   row2 for the second-stage primes */
+static bit_array *row1[NUM_PRIMES];
+static bit_array *row2[NUM_PRIMES];
+
+
+/**************************************************************************
+ * Set-up: the chunks and their tables                                    *
+ **************************************************************************/
+
+void init_sift(void)
+{
+  long w_low = (-height)>>LONG_SHIFT;    /* FLOOR(-height, LONG_LENGTH) */
+  long w_high = (height>>LONG_SHIFT)+1;  /* CEIL(height+1, LONG_LENGTH) */
+  long np1 = sieve_primes1, k, n;
+  walk_spec *walk;
+  long *res;
+
+  np2 = sieve_primes2 - sieve_primes1;
+  num_chunks = CEIL(w_high - w_low, array_size);
+  survivors = (bit_array *)malloc(array_size*sizeof(bit_array));
+  chunks = (chunk_spec *)malloc(num_chunks*sizeof(chunk_spec));
+  walk = (walk_spec *)malloc((num_chunks*np1 + 1)*sizeof(walk_spec));
+  res = (long *)malloc((num_chunks*np2 + 1)*sizeof(long));
+  res0 = (unsigned short *)malloc((array_size*np2 + 1)*sizeof(unsigned short));
+  if(survivors == NULL || chunks == NULL || walk == NULL || res == NULL
+       || res0 == NULL)
+  { error(7); }
+  for(k = 0; k < num_chunks; k++)
+  { chunk_spec *ch = &chunks[k];
+    long range;
+    ch->w_low = w_low + k*array_size;
+    ch->w_high = ch->w_low + array_size;
+    if(ch->w_high > w_high) { ch->w_high = w_high; }
+    range = ch->w_high - ch->w_low;
+    ch->walk = &walk[k*np1];
+    ch->res = &res[k*np2];
+    for(n = 0; n < np1; n++)
+    { long p = prime[pnn[n]], start = ch->w_low % p;
+      walk_spec *w = &ch->walk[n];
+      if(start < 0) { start += p; }
+      w->first = (start == 0) ? p : start;
+      w->head = p - w->first;
+      if(w->head > range) { w->head = range; }
+      w->nper = (range - w->head)/p;
+      w->tail = range - w->head - w->nper*p;
+    }
+    for(n = 0; n < np2; n++)
+    { long p = prime[pnn[np1 + n]], start = ch->w_low % p;
+      if(start < 0) { start += p; }
+      ch->res[n] = start;
+    }
+  }
+  for(n = 0; n < np2; n++)
+  { long p = prime[pnn[np1 + n]];
+    p2[n] = p;
+    for(k = 0; k < array_size; k++) { res0[k*np2 + n] = k % p; }
+  }
+  return;
+}
 
 
 /**************************************************************************
  * Some helper functions                                                  *
  **************************************************************************/
-
-// static inline long long m, long n)
-// {
-//   if(n < 0) n = -n;
-//   /* m is always nonnegative here */
-//   while(1)
-//   { if(n == 0) return(m);
-//     m %= n;
-//     if(m == 0) return(n);
-//     n %= m;
-//   }
-// }
 
 /* Determine if n and m are coprime.
  * n, m are >= 0, and n and m are not both even. */
@@ -110,17 +187,19 @@ static inline int relprime3(long a, long b, long c)
   return(a == 1);
 }
 
-static inline int check_point(bit_array nums, long a, long b, long i)
-{ /* to be more precise, this checks a complete bit_array of possible
-     survivors */
-  sieve_spec *ssp = (i < 0) ? &sieves2n[0] : &sieves2p[0];
-
+/* Test a surviving word of the chunk against the second-stage primes and
+   hand the surviving bits to the exact check.  i is the index of the word,
+   k = i - w_low its position in the chunk, res the residues of w_low. */
+static inline int check_point(bit_array nums, long a, long b, long i,
+                              long k, long *res)
+{
   num_surv1++;
-  { long n;
-    long ii = i;
-    for(n = sieve_primes2 - sieve_primes1; n && nums; n--)
-    { nums &= ssp->ptr[ii%(ssp->p)];
-      ssp++;
+  { unsigned short *r0 = &res0[k*np2];
+    long m;
+    for(m = 0; m < np2 && nums; m++)
+    { long r = r0[m] + res[m];
+      if(r >= p2[m]) { r -= p2[m]; }
+      nums &= row2[m][r];
     }
   }
   if(nums)
@@ -150,52 +229,46 @@ static inline int check_point(bit_array nums, long a, long b, long i)
  | of the code the compiler produces for the innermost loops in sift0.    |
  +------------------------------------------------------------------------*/
 
-int sift0(long a, long b, long w_low, long w_high)
+static int sift0(long a, long b, chunk_spec *ch)
 {
+  long n, range = ch->w_high - ch->w_low;
    /* now do the sieving (fast!) */
-  long n, i, range = w_high - w_low;
   for(n = 0; n < sieve_primes1; n++)
   {
     long p = prime[pnn[n]];
-    bit_array *sieve_n = sieves1[n].ptr;
-    long p_low = CEIL(w_low, p), p_high = FLOOR(w_high, p);
+    walk_spec *w = &ch->walk[n];
     bit_array *surv = survivors;
-
-    if(p_high < p_low)
+    bit_array *siv1 = &row1[n][w->first];
+    long j;
+    for(j = w->head; j; j--) { *surv++ &= *siv1++; }
+    /* now siv1 points at the end of the table row, whose word p repeats
+       its word 0, if there is anything left to do */
+    for(j = w->nper; j; j--)
     {
-      bit_array *siv1;
-      long i;
-      siv1 = &sieve_n[w_low - p * p_high];
-      for(i = range; i ; i--) { *surv++ &= *siv1++; }
-    }
-    else
-    {
-      bit_array *siv1;
-      long j = p * p_low - w_low;
-      siv1 = &sieve_n[p-j];
-      for( ; j; j--) { *surv++ &= *siv1++; }
-      j = p_high - p_low;
-      p_high *= p;
-      for( ; j; j--)
-      {
-        bit_array *siv0;
-        siv0 = siv1;
-        siv1 -= p;
-        do {*surv++ &= *siv1++;} while(siv1 != siv0);
-      }
+      bit_array *siv0;
+      siv0 = siv1;
       siv1 -= p;
-      for(j = w_high - p_high; j; j--) { *surv++ &= *siv1++; }
-  } }
+      do {*surv++ &= *siv1++;} while(siv1 != siv0);
+    }
+    if((j = w->tail))
+    { siv1 -= p;
+      for( ; j; j--) { *surv++ &= *siv1++; }
+    }
+  }
 #if (DEBUG >= 3)
-  for(i = 0; i < range; i++) { printf(" %8.8lx",survivors[i]); }
-  printf("\n");
+  { long i;
+    for(i = 0; i < range; i++) { printf(" %8.8lx",survivors[i]); }
+    printf("\n");
+  }
 #endif
   /* Check the points that have survived the sieve if they really are points */
   { bit_array *surv0 = &survivors[0];
     bit_array nums;
-    for(i = w_low; i < w_high; i++)
+    long k;
+    for(k = 0; k < range; k++)
     { if((nums = *surv0++))
-      { if(check_point(nums, a, b, i) && one_point) { return(1); }
+      { if(check_point(nums, a, b, ch->w_low + k, k, ch->res) && one_point)
+        { return(1); }
   } } }
   return(0);
 }
@@ -203,9 +276,12 @@ int sift0(long a, long b, long w_low, long w_high)
 int sift(long a, long b)
 /* print points surviving sieve */
 {
-  long range;
-  long w_low, w_high;
-  long w_low0, w_high0;
+  /* the residues of a and b modulo the sieving primes: b steps by one
+     from one row to the next, so they are kept and advanced, and computed
+     by division only when a changes or the caller jumps */
+  static long last_a = -1, last_b = 0;
+  static long ares[NUM_PRIMES], bres[NUM_PRIMES];
+  long n, k;
   /* c0 is value of c that has to be excluded */
   long c0 = height + LONG_LENGTH;
   bit_array mask;
@@ -214,27 +290,30 @@ int sift(long a, long b)
   printf("\n sift(a = %ld, b = %ld)\n", a, b);
 #endif
 
-  { long n, m;
-    for(n = 0; n < sieve_primes1; n++)
-    { long pn = pnn[n], p = prime[pn], bp = b%p;
-      if(bp < 0) { bp += p; }
-      sieves1[n].ptr = &sieve[n][a%p][bp][0];
-    }
-    for(m = 0 ; n < sieve_primes2; n++, m++)
-    { long pn = pnn[n], p = prime[pn], bp = b%p;
-      if(bp < 0) { bp += p; }
-      sieves2n[m].ptr = (sieves2p[m].ptr = &sieve[n][a%p][bp][0]) + p;
+  if(a == last_a && b == last_b + 1)
+  { for(n = 0; n < sieve_primes2; n++)
+    { if(++bres[n] == prime[pnn[n]]) { bres[n] = 0; } }
+  }
+  else
+  { for(n = 0; n < sieve_primes2; n++)
+    { long p = prime[pnn[n]];
+      ares[n] = a % p;
+      bres[n] = b % p;
+      if(bres[n] < 0) { bres[n] += p; }
     }
   }
-  /* Now the range of longwords (= bit_arrays) */
+  last_a = a; last_b = b;
+  for(n = 0; n < sieve_primes1; n++)
+  { row1[n] = &sieve[n][ares[n]][bres[n]][0]; }
+  for( ; n < sieve_primes2; n++)
+  { row2[n - sieve_primes1] = &sieve[n][ares[n]][bres[n]][0]; }
+
+  /* Now the chunks of longwords (= bit_arrays) */
   mask = ~zero;
   if(!((a|b)&1)) { mask = HALF_MASK; }
-  w_low = (-height)>>LONG_SHIFT;    /* FLOOR(-height, LONG_LENGTH); */
-  w_high = (height>>LONG_SHIFT)+1;  /* CEIL(height+1, LONG_LENGTH); */
-  for(w_low0 = w_low; w_low0 < w_high; w_low0 += array_size)
-  { w_high0 = w_low0 + array_size;
-    if(w_high0 > w_high) { w_high0 = w_high; }
-    range = w_high0 - w_low0;
+  for(k = 0; k < num_chunks; k++)
+  { chunk_spec *ch = &chunks[k];
+    long range = ch->w_high - ch->w_low;
     /* initialise the bits */
     {
       bit_array *surv;
@@ -242,20 +321,19 @@ int sift(long a, long b)
       surv = &survivors[0];
       for(i = range; i; i--) { *surv++ = mask; }
     }
-    if(w_low0 == w_low) { survivors[0] &= begmask; }
-    if(w_high0 == w_high) { survivors[range-1] &= endmask; }
-    if(w_low0 <= (c0>>LONG_SHIFT) && (c0>>LONG_SHIFT) < w_high0)
-    { survivors[(c0>>LONG_SHIFT) - w_low0] &= ~(1UL<<(c0 & LONG_MASK)); }
+    if(k == 0) { survivors[0] &= begmask; }
+    if(k == num_chunks - 1) { survivors[range-1] &= endmask; }
+    if(ch->w_low <= (c0>>LONG_SHIFT) && (c0>>LONG_SHIFT) < ch->w_high)
+    { survivors[(c0>>LONG_SHIFT) - ch->w_low] &= ~(1UL<<(c0 & LONG_MASK)); }
 #if (DEBUG >= 3)
     { long i;
       for(i = 0; i < range; i++) printf(" %8.8lx",survivors[i]);
     }
 #endif
 #if (DEBUG >= 1)
-    printf("\n sift0(%ld, %ld)\n", w_low0, w_high0);
+    printf("\n sift0(%ld, %ld)\n", ch->w_low, ch->w_high);
 #endif
-    if(sift0(a, b, w_low0, w_high0) && one_point) { return(1); }
+    if(sift0(a, b, ch) && one_point) { return(1); }
   }
   return(0);
 }
-

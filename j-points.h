@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-2.1                                                        *
+ * j-points-3.0                                                        *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -60,8 +60,6 @@
 typedef unsigned long bit_array;
 #define zero ((bit_array)0);
 
-typedef struct {long p; bit_array *ptr;} sieve_spec;
-
 extern long prime[];
 extern long pnn[];
 extern int one_point;        /* A flag saying if one point is enough */
@@ -80,10 +78,8 @@ extern long array_size;      /* The size of the survivors array (in longs) */
 extern bit_array begmask, endmask;
    /* Bit masks for the beginning and end of the sieving array */
 
-extern sieve_spec sieves1[NUM_PRIMES];
-extern sieve_spec sieves2p[NUM_PRIMES];
-extern sieve_spec sieves2n[NUM_PRIMES];
-
 extern int check_one_point(long, long, long);
+extern void error(long);
 
+extern void init_sift(void);
 extern int sift(long, long);
