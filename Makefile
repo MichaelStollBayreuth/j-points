@@ -105,12 +105,15 @@ test4: j-points testbase4 testcurves2 test4.sh
 testbrute: j-points testcurves2 testbrute.sh
 	./testbrute.sh > testbrute.out || ${FAIL}
 
-# Twelve runs on point-rich curves from the ratpoints suites (testcurves-rich)
-# against testbase-rich, which is the output of 2.1 -- a baseline for the
-# work on the sieve, not in "make test" until verify-test2.sh has checked it
-# (CURVES=testcurves-rich REF=testbase-rich ./verify-test2.sh).
+# Fourteen runs with -a on point-rich curves (testcurves-rich: from the
+# ratpoints suites, and the record curve of Mueller-Stoll) against
+# testbase-rich, the output of 2.1 checked by verify-test2.sh against the
+# unsieved run (JPOPTS=-a CURVES=testcurves-rich REF=testbase-rich
+# ./verify-test2.sh) -- the regime of the enumeration of points of bounded
+# canonical height, and the baseline for the work on the sieve; not in
+# "make test" (about 8 s).
 testrich: j-points testcurves-rich testbase-rich test2.sh
-	CURVES=testcurves-rich ./test2.sh > testrich.out 2>&1
+	JPOPTS=-a CURVES=testcurves-rich ./test2.sh > testrich.out 2>&1
 	cmp -s testbase-rich testrich.out || ${FAIL}
 
 install-bin: j-points

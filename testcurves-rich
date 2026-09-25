@@ -2,10 +2,15 @@
 # (genus 2 curves with many rational points) whose coefficients are small; the
 # ones with coefficients of 10^6 and more have no point of naive height below
 # 10^4 on the Kummer surface, so they say nothing here.  Same format as
-# testcurves2: coefficients a_0 ... a_d, a height bound, a comment.  testbase-rich
-# is the output of 2.1 on this list ("CURVES=testcurves-rich ./test2.sh"),
-# a baseline, to be verified by "CURVES=testcurves-rich REF=testbase-rich
-# ./verify-test2.sh" before the list joins the tests "make test" runs.
+# testcurves2: coefficients a_0 ... a_d, a height bound, a comment.  The runs
+# use -a, the option the enumeration of points of bounded canonical height
+# needs (Mueller-Stoll, ANT 10 (2016), section 18), which is where such
+# curves come up; the last entries are the curve of section 19 of that paper,
+# with ten-digit coefficients and 642 known rational points, which has no
+# point of standard naive height below 10^4 but thousands with -a.
+# testbase-rich is the output of 2.1 on this list ("JPOPTS=-a
+# CURVES=testcurves-rich ./test2.sh"), verified by "JPOPTS=-a
+# CURVES=testcurves-rich REF=testbase-rich ./verify-test2.sh".
 1 1 -2 -15 13 2 1;300;ratpoints testdata-many.h #28
 4 13 1 -19 -4 0 9;300;ratpoints testdata-many.h #41
 1 -20 2 21 13 -9 1;300;ratpoints testdata-many.h #44
@@ -18,3 +23,5 @@
 4 4 -5 7 2 -4 1;300;ratpoints testdata-many.h #18
 1 1 -2 -15 13 2 1;1000;ratpoints testdata-many.h #28
 4 13 1 -19 -4 0 9;1000;ratpoints testdata-many.h #41
+247747600 -985905640 567207969 2396040466 52485681 -470135160 82342800;300;Mueller-Stoll section 19, the record curve
+247747600 -985905640 567207969 2396040466 52485681 -470135160 82342800;1000;the same
