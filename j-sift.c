@@ -117,10 +117,12 @@ static double invp[NUM_PRIMES];     /* 1/p, for the parts of a walk over a range
 /* the tube's bands (see there): the words collected for the rows of the
    band a thread analyses, per row up to TUBE_RANGES ranges [lo, hi) */
 #define TUBE_BAND 4096    /* rows analysed and then sieved together */
-#define TUBE_RANGES 24    /* word ranges of the tube kept per row; more are merged */
+#define TUBE_RANGES 12    /* word ranges of the tube kept per row; more are merged */
 static _Thread_local long band_b0;                /* the first row */
 static _Thread_local long *band_nr = NULL;        /* ranges per row */
-static _Thread_local long (*band_lo)[TUBE_RANGES], (*band_hi)[TUBE_RANGES];
+static _Thread_local long (*band_rg)[2*TUBE_RANGES];   /* per row, its ranges [lo, hi) */
+#define BLO(row, k) band_rg[row][2*(k)]
+#define BHI(row, k) band_rg[row][2*(k) + 1]
 
 
 /**************************************************************************
@@ -206,10 +208,8 @@ void init_thread_sieve(void)
 {
   survivors = (bit_array *)aligned_alloc(64, ((array_size + VW)*sizeof(bit_array) + 63)/64*64);
   band_nr = (long *)malloc(TUBE_BAND*sizeof(long));
-  band_lo = malloc(TUBE_BAND*TUBE_RANGES*sizeof(long));
-  band_hi = malloc(TUBE_BAND*TUBE_RANGES*sizeof(long));
-  if(survivors == NULL || band_nr == NULL || band_lo == NULL || band_hi == NULL)
-  { error(7); }
+  band_rg = malloc(TUBE_BAND*2*TUBE_RANGES*sizeof(long));
+  if(survivors == NULL || band_nr == NULL || band_rg == NULL) { error(7); }
   return;
 }
 
@@ -598,13 +598,13 @@ static inline int poly_sign(double *Q, long deg, double *rp, double err,
 static inline void tube_emit(long b, long i_lo, long i_hi)
 {
   long row = b - band_b0, nr = band_nr[row];
-  if(nr > 0 && band_hi[row][nr-1] >= i_lo)
-  { if(band_hi[row][nr-1] < i_hi) { band_hi[row][nr-1] = i_hi; }
+  if(nr > 0 && BHI(row, nr-1) >= i_lo)
+  { if(BHI(row, nr-1) < i_hi) { BHI(row, nr-1) = i_hi; }
     return;
   }
   if(nr == TUBE_RANGES)
-  { band_hi[row][0] = i_hi; band_nr[row] = 1; return; }
-  band_lo[row][nr] = i_lo; band_hi[row][nr] = i_hi;
+  { BHI(row, 0) = i_hi; band_nr[row] = 1; return; }
+  BLO(row, nr) = i_lo; BHI(row, nr) = i_hi;
   band_nr[row] = nr + 1;
   return;
 }
@@ -690,10 +690,10 @@ static long row_cut(long row, long nreg, long *reglo, long *reghi, long *rlo, lo
 {
   long nr = band_nr[row], i = 0, j = 0, n = 0;
   while(i < nr && j < nreg)
-  { long lo = (band_lo[row][i] > reglo[j]) ? band_lo[row][i] : reglo[j];
-    long hi = (band_hi[row][i] < reghi[j]) ? band_hi[row][i] : reghi[j];
+  { long lo = (BLO(row, i) > reglo[j]) ? BLO(row, i) : reglo[j];
+    long hi = (BHI(row, i) < reghi[j]) ? BHI(row, i) : reghi[j];
     if(lo < hi) { rlo[n] = lo; rhi[n] = hi; n++; }
-    if(band_hi[row][i] < reghi[j]) { i++; } else { j++; }
+    if(BHI(row, i) < reghi[j]) { i++; } else { j++; }
   }
   return(n);
 }
@@ -732,7 +732,7 @@ void tube_sample(double *tube_words, double *tube_words_cut, double *tube_cells,
       if(nreg > 0) { left++; }
       n = row_cut(b - b_lo, nreg, reglo, reghi, rlo, rhi);
       for(r = 0; r < n; r++) { tcut += (double)(rhi[r] - rlo[r]); }
-      for(r = 0; r < band_nr[b - b_lo]; r++) { twords += (double)(band_hi[b - b_lo][r] - band_lo[b - b_lo][r]); }
+      for(r = 0; r < band_nr[b - b_lo]; r++) { twords += (double)(BHI(b - b_lo, r) - BLO(b - b_lo, r)); }
       if(band_nr[b - b_lo] > 0) { tleft++; }
     }
     cells += (double)tube_ncells;
@@ -807,7 +807,10 @@ int sift_bands(long a, long b_first, long m)
       if(tube && band_nr[b - b_lo] == 0) { continue; }
       if(use2 && a != 0 && !alive2[a & 63][b & 63]) { continue; }
       if(tube && !tube_cut)
-      { nr = band_nr[b - b_lo]; rlo = band_lo[b - b_lo]; rhi = band_hi[b - b_lo]; }
+      { nr = band_nr[b - b_lo];
+        for(k = 0; k < nr; k++) { clo[k] = BLO(b - b_lo, k); chi[k] = BHI(b - b_lo, k); }
+        rlo = clo; rhi = chi;
+      }
       else if(tube)
       { nr = row_region(a, b, reglo, reghi);
         nr = row_cut(b - b_lo, nr, reglo, reghi, clo, chi);
@@ -852,22 +855,21 @@ int sift_bands(long a, long b_first, long m)
 /*------------------------------------------------------------------------+
  | The following procedure is the heart of the matter.                    |
  | The overall speed of the program highly depends on the quality         |
- | of the code the compiler produces for the innermost loops in           |
- | sift_range.                                                            |
+ | of the code the compiler produces for the innermost loops in sift0     |
+ | and sift_range.                                                        |
  +------------------------------------------------------------------------*/
 
-/* The walk of the n-th prime over the words [off, off + len) of the
-   chunk: OP(word of the bit array, table word) for every word.  The
-   scalar walk (VW = 1) reads the table row from its word f1 up to its
-   end, then in full periods of p words, then the tail; the vector walk
-   reads VW words at a time from the offset f1 on, wrapping at the
-   period.  For the whole chunk the walk is the precomputed one; for a
-   range it starts off words further on, and its parts are computed
-   from the residue tables, without a division. */
+/* The walk of the n-th prime over the words of the bit array from surv0
+   on: OP(word of the bit array, table word) for every word.  The scalar
+   walk (VW = 1) reads the table row from its word f1 up to its end (hd
+   words), then in np full periods of p words, then the tail of tl
+   words; the vector walk reads VW words at a time from the offset f1
+   on, period by period, nv vectors.  For the whole chunk the parts are
+   the precomputed ones; for a range starting off words into the chunk
+   walk_parts computes them from the residue tables, without a division. */
 static inline void walk_parts(long n, long p, walk_spec *w, long off, long len,
-                              int whole, long *f1, long *hd, long *np, long *tl)
+                              long *f1, long *hd, long *np, long *tl)
 {
-  if(whole) { *f1 = w->first; *hd = w->head; *np = w->nper; *tl = w->tail; return; }
   if(VW == 1)
   { long f = w->first + res0[off*npr + n], h, rem, r;
     if(f > p) { f -= p; }
@@ -905,40 +907,130 @@ static inline void walk_parts(long n, long p, walk_spec *w, long off, long len,
 #define AND_OP(d, s) ((d) &= (s))
 #define FILL_OP(d, s) ((d) = mask & (s))
 #else
+/* the vectors up to the end of the period without a test in between
+   (the row continues VW words beyond it, so the last one may straddle
+   the end), then the offset wrapped and the next period */
+#define VSHIFT ((VW == 2) ? 1 : (VW == 4) ? 2 : (VW == 8) ? 3 : 4)
 #define WALK(OP) \
   { vecu *surv = (vecu *)surv0; \
     bit_array *row = rowptr[n]; \
-    long t = f1, Pd = period[n], j; \
+    long t = f1, Pd = period[n], j = nv; \
     (void)p; (void)hd; (void)np; (void)tl; \
-    for(j = nv; j; j--) \
-    { vec s = *(vecu *)(row + t); \
-      OP(*surv, s); surv++; \
-      t += VW; t -= (t >= Pd) ? Pd : 0; \
+    while(j > 0) \
+    { long k = (Pd - t + VW - 1) >> VSHIFT; \
+      if(k > j) { k = j; } \
+      j -= k; \
+      for( ; k; k--) { vec s = *(vecu *)(row + t); OP(*surv, s); surv++; t += VW; } \
+      t -= Pd; \
     } \
   }
 #define AND_OP(d, s) ((d) &= (s))
 #define FILL_OP(d, s) ((d) = vmask & (s))
 #endif
 
-/* Sieve the words [lo, hi) of the k-th chunk of the row (a, b) -- the
-   whole chunk in the box: the bit array set from the mask (all bits, or
-   the odd c when a and b are even) and the table of the first prime in
-   one pass, the ends of the row and the excluded c0 taken out, the other
-   first-stage primes ANDed in, the surviving words passed to the second
-   stage. */
+/* the words [lo, hi) of the chunk (positions in it) that survived the
+   passes: handed to the second stage; returns 1 when one point is enough
+   and one was found */
+static inline int scan_words(long a, long b, chunk_spec *ch, long lo, long hi)
+{
+#if VW == 1
+  bit_array *surv = survivors + lo;
+  bit_array nums;
+  long i;
+  for(i = lo; i < hi; i++)
+  { if((nums = *surv++))
+    { if(check_point(nums, a, b, ch->w_low + i, i, ch->res) && one_point)
+      { return(1); }
+  } }
+#else
+  /* a vector at a time, the words beyond [lo, hi) left alone (they may
+     belong to the range before or after) */
+  long j, i, j0 = lo & ~(VW - 1);
+  for(j = j0; j < hi; j += VW)
+  { vec v = *(vecu *)(survivors + j);
+    bit_array any = 0;
+    for(i = 0; i < VW; i++) { any |= v[i]; }
+    if(any)
+    { for(i = 0; i < VW; i++)
+      { bit_array nums = v[i];
+        long pos = j + i;
+        if(nums && pos >= lo && pos < hi
+           && check_point(nums, a, b, ch->w_low + pos, pos, ch->res) && one_point)
+        { return(1); }
+      }
+    }
+  }
+#endif
+  return(0);
+}
+
+/* Sieve the k-th chunk of the row (a, b), whole: the bit array set from
+   the mask (all bits, or the odd c when a and b are even) and the table
+   of the first prime in one pass, the ends of the row and the excluded
+   c0 taken out, the other first-stage primes ANDed in, the surviving
+   words passed to the second stage. */
+static int sift0(long a, long b, long k, bit_array mask, long c0)
+{
+  chunk_spec *ch = &chunks[k];
+  long n, range = ch->w_high - ch->w_low, f1, hd, np, tl;
+  bit_array *surv0 = survivors;
+#if VW > 1
+  vec vmask;
+  long nv = ch->nvec;
+  for(n = 0; n < VW; n++) { vmask[n] = mask; }
+#endif
+  /* the fill, merged with the first prime's pass if there is one */
+  if(sieve_primes1 == 0)
+  { bit_array *surv = surv0;
+    long i;
+    for(i = range; i; i--) { *surv++ = mask; }
+    n = 0;
+  }
+  else
+  { long p = pr[0];
+    walk_spec *w = &ch->walk[0];
+    n = 0;
+    f1 = w->first; hd = w->head; np = w->nper; tl = w->tail;
+    WALK(FILL_OP);
+    n = 1;
+  }
+  if(k == 0) { survivors[0] &= begmask; }
+  if(k == num_chunks - 1) { survivors[range-1] &= endmask; }
+  if(ch->w_low <= (c0>>LONG_SHIFT) && (c0>>LONG_SHIFT) < ch->w_high)
+  { survivors[(c0>>LONG_SHIFT) - ch->w_low] &= ~(1UL<<(c0 & LONG_MASK)); }
+#if (DEBUG >= 1)
+  printf("\n sift0(%ld, %ld)\n", ch->w_low, ch->w_high);
+#endif
+  /* now do the sieving (fast!) */
+  for( ; n < sieve_primes1; n++)
+  { long p = pr[n];
+    walk_spec *w = &ch->walk[n];
+    f1 = w->first; hd = w->head; np = w->nper; tl = w->tail;
+    WALK(AND_OP);
+  }
+#if VW > 1
+  { long i;   /* the padding beyond the chunk cleared before the scan */
+    for(i = range; i < nv*VW; i++) { survivors[i] = 0; }
+  }
+#endif
+  return(scan_words(a, b, ch, 0, range));
+}
+
+/* The same for the words [lo, hi) of the chunk, a range of the real
+   region: the walks start off words into the chunk (walk_parts); the
+   vector walk works in whole vectors, so the range is widened to them
+   for the passes (the words beyond it are sieved again, harmlessly, and
+   only the range is scanned). */
 static int sift_range(long a, long b, long k, long lo, long hi, bit_array mask, long c0)
 {
   chunk_spec *ch = &chunks[k];
   long n, range = ch->w_high - ch->w_low, off = lo - ch->w_low, len = hi - lo;
-  long f1, hd, np, tl, cw = (c0>>LONG_SHIFT) - ch->w_low;
-  int whole;
+  long lo0 = off, hi0 = off + len, f1, hd, np, tl, cw = (c0>>LONG_SHIFT) - ch->w_low;
   bit_array *surv0;
 #if VW > 1
   vec vmask;
   long nv;
   for(n = 0; n < VW; n++) { vmask[n] = mask; }
-  /* whole vectors: the range widened to them (the words beyond the chunk
-     cleared before the scan) */
   { long o = off & ~(VW - 1);
     len += off - o; off = o;
     len = (len + VW - 1) & ~(VW - 1);
@@ -946,7 +1038,6 @@ static int sift_range(long a, long b, long k, long lo, long hi, bit_array mask, 
     nv = len/VW;
   }
 #endif
-  whole = (off == 0 && len >= range);
   surv0 = survivors + off;
   /* the fill, merged with the first prime's pass if there is one */
   if(sieve_primes1 == 0)
@@ -959,61 +1050,29 @@ static int sift_range(long a, long b, long k, long lo, long hi, bit_array mask, 
   { long p = pr[0];
     walk_spec *w = &ch->walk[0];
     n = 0;
-    walk_parts(0, p, w, off, len, whole, &f1, &hd, &np, &tl);
+    walk_parts(0, p, w, off, len, &f1, &hd, &np, &tl);
     WALK(FILL_OP);
     n = 1;
   }
+  (void)hd; (void)np; (void)tl;
   if(k == 0 && off == 0) { survivors[0] &= begmask; }
   if(k == num_chunks - 1 && off + len >= range) { survivors[range-1] &= endmask; }
   if(off <= cw && cw < off + len) { survivors[cw] &= ~(1UL<<(c0 & LONG_MASK)); }
 #if (DEBUG >= 1)
   printf("\n sift_range(%ld, %ld)\n", lo, hi);
 #endif
-  /* now do the sieving (fast!) */
   for( ; n < sieve_primes1; n++)
   { long p = pr[n];
     walk_spec *w = &ch->walk[n];
-    walk_parts(n, p, w, off, len, whole, &f1, &hd, &np, &tl);
+    walk_parts(n, p, w, off, len, &f1, &hd, &np, &tl);
     WALK(AND_OP);
   }
-#if (DEBUG >= 3)
-  { long i;
-    for(i = off; i < off + len; i++) { printf(" %8.8lx",survivors[i]); }
-    printf("\n");
-  }
-#endif
-  /* Check the points that have survived the sieve if they really are points */
-#if VW == 1
-  { bit_array *surv = surv0;
-    bit_array nums;
-    long i;
-    for(i = off; i < off + len; i++)
-    { if((nums = *surv++))
-      { if(check_point(nums, a, b, ch->w_low + i, i, ch->res) && one_point)
-        { return(1); }
-  } } }
-#else
-  { /* the padding beyond the chunk cleared, then a vector at a time */
-    vecu *sv = (vecu *)surv0;
-    long i, j;
+#if VW > 1
+  { long i;   /* the padding beyond the chunk cleared before the scan */
     for(i = range; i < off + len; i++) { survivors[i] = 0; }
-    for(j = 0; j < nv; j++)
-    { vec v = sv[j];
-      bit_array any = 0;
-      for(i = 0; i < VW; i++) { any |= v[i]; }
-      if(any)
-      { for(i = 0; i < VW; i++)
-        { bit_array nums = v[i];
-          long pos = off + j*VW + i;
-          if(nums && check_point(nums, a, b, ch->w_low + pos, pos, ch->res)
-             && one_point)
-          { return(1); }
-        }
-      }
-    }
   }
 #endif
-  return(0);
+  return(scan_words(a, b, ch, lo0, hi0));
 }
 
 /* the residues of b modulo the sieving primes and the table rows of
@@ -1087,8 +1146,6 @@ int sift(long a, long b)
   else if(!((a|b)&1)) { mask = HALF_MASK; }
   /* Now the chunks of longwords (= bit_arrays) */
   for(k = 0; k < num_chunks; k++)
-  { if(sift_range(a, b, k, chunks[k].w_low, chunks[k].w_high, mask, c0) && one_point)
-    { return(1); }
-  }
+  { if(sift0(a, b, k, mask, c0) && one_point) { return(1); } }
   return(0);
 }

@@ -278,15 +278,18 @@ sieve together.
     row inside the region, a plain run cuts the tube's words to it, where
     the cost model finds it worth it; the model also counts the rows of a
     monic quintic correctly (only the square first coordinates), which
-    improves its choice of primes there. 1.2x to 1.4x on `-a` runs of
+    improves its choice of primes there. 1.1x to 1.4x on `-a` runs of
     curves on which f is negative on a good part of the line (c1 at 2000
-    and 4000, c3 at 4000), nothing on the record curve (f > 0 nearly
-    everywhere); 1.1x to 1.25x on plain runs of such curves.
+    and 4000, c3 at 2000 and 4000), nothing on the record curve (f > 0 nearly
+    everywhere); 1.1x to 1.25x on plain runs of such curves. The range
+    limit of the tube's rows raised from 8 to 24, and cells in which the
+    condition holds throughout taken whole: 1.1x on c4's plain run.
   + The passes of the sieve over the bit array can be built with vectors of
     two or four words (`make VECTOR=sse2` or `avx2`), behind a compile-time
-    switch: 1.2x on `-a` runs with AVX2 on a recent laptop; SSE2 gave 1.1x
-    there and lost 0.1-0.2x on an older desktop (Ivy Bridge), so measure
-    before choosing it.
+    switch; the vector walk runs through each period of a table row
+    without a test per vector. 1.25x on `-a` runs with AVX2 and 1.2x with
+    SSE2 on a recent laptop, 1.3x with SSE2 on an older desktop (Ivy
+    Bridge); nothing for a plain run in the tube, which has no passes.
   + A condition at 2: a point with coprime integer coordinates satisfies
     the Kummer equation and has a certain square among its coordinates
     (the quantity A^2 of the lifting test), so a class of (a, b, c) modulo
