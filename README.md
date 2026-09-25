@@ -49,7 +49,8 @@ The optional arguments, which can be given in any order, are these.
 
 + `-n num_primes1`: the number of primes used for the first sieving stage.
   By default it is chosen automatically, like the primes themselves (see
-  below).
+  below). A plain run that sieves in the tube (see below) has no first
+  stage, and `-n` does nothing then.
 + `-M num_primes2`: the number of primes used for the first two sieving
   stages together. By default it is chosen automatically.
 + `-N num_primes3`: the number of primes used for all three sieving stages
@@ -125,6 +126,18 @@ There are a number of improvements to this basic scheme.
    leading coefficient of f is not a square modulo a sieving prime p, the
    curve has no point at infinity over F_p, and no point of J reduces to a
    Kummer point with a divisible by p unless b is too.
+5. The bound on the fourth coordinate d cuts the box of the first three to
+   a thin tube: d is a root of a quadratic whose coefficients are
+   polynomials in (a, b, c), and a root in [-h, h] exists only close to
+   the plane section d = 0 of the Kummer surface (or near the origin). A
+   plain run (not `-a`, whose points have no such bound) therefore does
+   not sieve whole rows: for each a, the plane of (b, c) is cut into cells
+   of rows times words, a cell is dropped when rigorous bounds show that no
+   root in [-h, h] exists in it, and only the words of the cells left are
+   sieved, one by one. The gain depends on the curve and grows with the
+   height bound (from 1.3x to 14x at 2000 on the test curves, 4.5x to 20x
+   at 10000); a cost model decides between the tube and the sieve of whole
+   rows, which stays better where the tube is fat.
 
 ## Examples
 
@@ -220,6 +233,11 @@ sieve together.
     tables are made for the primes chosen only, so that the set-up is
     cheaper than before at small height bounds. 1.6-1.8x on the record
     curve (which had been starved of primes), 1.0-1.03x on random curves.
+  + The tube: a plain run analyses, for each a, the plane of (b, c) in
+    cells and sieves only the words in which a fourth coordinate of height
+    at most h can exist (see "How the program works"); rigorous bounds, so
+    the points are the same. 1.3x to 14x at 2000 on the test curves, more
+    at larger height bounds; nothing for `-a`.
 
 Michael Stoll, October 1998 - September 2026.
 

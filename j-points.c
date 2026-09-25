@@ -81,6 +81,12 @@ long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
                               that has such a bit (see row3_setup) */
 #define COST_TEST3   15.0  /* one third-stage test of a bit */
 #define COST_EXACT 1300.0  /* the exact check of a triple */
+#define COST_ROW    300.0  /* a row of the box sieve besides its passes:
+                              the fill, the scan, the set-up */
+#define COST_CELL   320.0  /* a cell of the tube's analysis */
+#define COST_TWORD   12.0  /* a word the tube leaves, besides its tests */
+#define COST_TTEST    4.0  /* one test of such a word (no early exit) */
+#define COST_TROW    45.0  /* a row in the tube: the set-up */
 #define COST_TABLE   13.0  /* one word of a sieve table at set-up */
 #define COST_INIT   110.0  /* one class (1, b, c) of the exact table of a
                               prime whose rate was sampled, at set-up */
@@ -119,6 +125,18 @@ MP_INT k400, k310, k301, k220, k211, k202, k130, k121, k112, k103,
         /* coefficients for Kummer equation */
 MP_INT x12, x22, x32;
 MP_INT kummer[3];
+
+/* The tube (see j-sift.c): the coefficients of the Kummer equation and
+   of f as doubles, for the bounds per row, and whether the tube is used
+   (plain runs: the bound on the fourth coordinate cuts the box to a
+   tube around the plane section d = 0 of the Kummer surface; -a has no
+   such bound, and the unsieved run must not use it) */
+double kd400, kd310, kd301, kd220, kd211, kd202, kd130, kd121, kd112,
+       kd103, kd040, kd031, kd022, kd013, kd004;
+double fd[7];
+int tube_mode = 0;
+double tube_words = 0.0;   /* words per row the tube leaves, sampled */
+double tube_cells = 0.0;   /* cells per row its analysis visits, sampled */
 MP_INT cpf1, cpf2, cpf3, cpfa, cpfb, cpfc;
 
 long degree;
@@ -165,6 +183,7 @@ void init_fmodpsquare(void);
 void choose_primes(void);
 void init_sieve(void);
 void kummer_init(void);
+void tube_init(void);
 static inline int relprime(long, long);
 int check_one_point_final(long, long, long, MP_INT *, MP_INT *);
 int check_one_point(long, long, long);
@@ -199,6 +218,7 @@ int main(int argc, char *argv[])
   if(s < array_size) array_size = s;
   /* initialise data for equations */
   kummer_init();
+  tube_init();
   /* find and count points */
   find_points();
   if(!quiet) { message(12, 0); message(2, total); }
@@ -569,20 +589,54 @@ static int compare_cands(const void *a, const void *b)
    cycle of the tests on the words the first stage leaves); the third
    stage the best n3 - n2 of all primes left, by their value for it.
    The numbers minimise the modelled cost. */
+static double choose_primes_mode(int tube);
+
+/* the two ways of a plain run priced, the cheaper taken (the tube
+   itself, and the cost of a row of the box, are not among the terms
+   that the choice of the primes sees, so they are added here) */
 void choose_primes(void)
+{
+  double box, tube;
+  long pin1 = sieve_primes1, pin2 = sieve_primes2, pin3 = sieve_primes3;
+  long p1, p2, p3, pn[NUM_PRIMES], n;
+  box = choose_primes_mode(0);
+  if(all_points) { return; }
+  /* the box's choice kept aside, the pins restored for the tube's */
+  p1 = sieve_primes1; p2 = sieve_primes2; p3 = sieve_primes3;
+  for(n = 0; n < p3; n++) { pn[n] = pnn[n]; }
+  sieve_primes1 = pin1; sieve_primes2 = pin2; sieve_primes3 = pin3;
+  tube = choose_primes_mode(1);
+  if(tube < box) { tube_mode = 1; return; }
+  sieve_primes1 = p1; sieve_primes2 = p2; sieve_primes3 = p3;
+  for(n = 0; n < p3; n++) { pnn[n] = pn[n]; }
+  return;
+}
+
+static double choose_primes_mode(int tube)
 {
   long ne = 0, n, n1, n2, n3, k;
   cand list1[NUM_PRIMES], list2[NUM_PRIMES], list3[NUM_PRIMES];
   long best1[NUM_PRIMES], best2[NUM_PRIMES], best3[NUM_PRIMES];
   double W = (double)(2*(height>>LONG_SHIFT) + 2);  /* words per row */
   double rows = (double)(height + 1) * (double)(2*height + 1);
-  double bits = (double)LONG_LENGTH * W;            /* bits per row */
-  double best = -1.0;
+  double bits;                                      /* bits per row */
+  double best = -1.0, fixed;
   long b1 = 0, b2 = 0, b3 = 0;
-  long n1lo, n1hi;
+  long n1lo, n1hi, pin1 = sieve_primes1;
   double logr[NUM_PRIMES], tabcost[NUM_PRIMES], initcost[NUM_PRIMES];
   int used[NUM_PRIMES];
 
+  /* in the tube there is no first stage: the words the tube leaves are
+     tested one by one, like the survivors of a first stage but without
+     an early exit; the cost of the analysis and of a row are fixed */
+  if(tube)
+  { W = (tube_words > 0.01) ? tube_words : 0.01;
+    pin1 = 0;
+    fixed = tube_cells * COST_CELL + COST_TROW + W * COST_TWORD;
+  }
+  else
+  { fixed = COST_ROW; }
+  bits = (double)LONG_LENGTH * W;
   for(n = 0; n < num_primes; n++)
   { double p = (double)prec[n].p;
     logr[n] = (prec[n].r > 0.0) ? -log(prec[n].r) : 1.0e9;
@@ -603,8 +657,8 @@ void choose_primes(void)
   n1lo = 0; n1hi = ne;
   if(sieve_primes2 >= 0 && n1hi > sieve_primes2) { n1hi = sieve_primes2; }
   if(sieve_primes3 >= 0 && n1hi > sieve_primes3) { n1hi = sieve_primes3; }
-  if(sieve_primes1 >= 0)
-  { n1lo = n1hi = (sieve_primes1 < n1hi) ? sieve_primes1 : n1hi; }
+  if(pin1 >= 0)
+  { n1lo = n1hi = (pin1 < n1hi) ? pin1 : n1hi; }
   for(n1 = n1lo; n1 <= n1hi; n1++)
   { double cost1 = 0.0, setup1 = 0.0, rho1 = 1.0, s1;
     long n2lo, n2hi, ne2 = 0;
@@ -638,10 +692,10 @@ void choose_primes(void)
     { double cost2, setup2 = setup1, rho2 = rho1, w = s1, rowbit;
       long n3lo, n3hi, ne3 = 0;
       /* the words the first stage leaves, tested until they die */
-      cost2 = W * w * COST_WORD;
+      cost2 = tube ? 0.0 : W * w * COST_WORD;
       for(k = 0; k < n2 - n1; k++)
       { n = list2[k].n;
-        cost2 += W * w * COST_TEST2;
+        cost2 += tube ? W * COST_TTEST : W * w * COST_TEST2;
         setup2 += tabcost[n] + initcost[n];
         rho2 *= prec[n].r;
         w = 1.0 - pow(1.0 - rho2, (double)LONG_LENGTH);
@@ -668,7 +722,7 @@ void choose_primes(void)
       { double cost3 = bits * rho2 * COST_BIT, setup3 = setup2, rho = rho2;
         for(n3 = n2; n3 <= n3hi; n3++)
         { if(n3 >= n3lo)
-          { double total = rows * (cost1 + cost2 + cost3
+          { double total = rows * (fixed + cost1 + cost2 + cost3
                                    + rowbit * (double)(n3 - n2) * COST_ROW3
                                    + bits * rho * COST_EXACT)
                            + setup3;
@@ -693,7 +747,7 @@ void choose_primes(void)
   for(k = 0; k < b1; k++) { pnn[k] = prec[best1[k]].n; }
   for(k = 0; k < b2 - b1; k++) { pnn[b1 + k] = prec[best2[k]].n; }
   for(k = 0; k < b3 - b2; k++) { pnn[b2 + k] = prec[best3[k]].n; }
-  return;
+  return(best);
 }
 
 /* help is an array for temporarily storing the sieving information.
@@ -913,6 +967,7 @@ void find_points(void)
   init_sieve();
   if(sieve_primes3 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
+  if(sieve_primes3 == 0) { tube_mode = 0; }
   /* the bit array and the tables of the chunks */
   init_sift();
   /* deal with (0, 0, c, d) */
@@ -929,25 +984,33 @@ void find_points(void)
   { /* can take only squares for the first coordinate */
     long aa;
     for(a = 0; (aa = a*a) <= height; a++)
-    { long m = row_step(aa);
-      for(b = (a == 0) ? m : -(height/m)*m; b <= height; b += m)
-      {
+    { long m = row_step(aa), b0 = (a == 0) ? m : -(height/m)*m;
+      if(tube_mode)
+      { if(sift_tube(aa, b0, m) && one_point) return; }
+      else
+      { for(b = b0; b <= height; b += m)
+        {
 #ifdef VERBOSE
-        printf(" a = %ld, b = %ld\n", aa, b);
+          printf(" a = %ld, b = %ld\n", aa, b);
 #endif
-        if(sift(aa, b) && one_point) return;
+          if(sift(aa, b) && one_point) return;
+        }
       }
     }
   }
   else
   { for(a = 0; a <= height; a++)
-    { long m = row_step(a);
-      for(b = (a == 0) ? m : -(height/m)*m; b <= height; b += m)
-      {
+    { long m = row_step(a), b0 = (a == 0) ? m : -(height/m)*m;
+      if(tube_mode)
+      { if(sift_tube(a, b0, m) && one_point) return; }
+      else
+      { for(b = b0; b <= height; b += m)
+        {
 #ifdef VERBOSE
-        printf(" a = %ld, b = %ld\n", a, b);
+          printf(" a = %ld, b = %ld\n", a, b);
 #endif
-        if(sift(a, b) && one_point) return;
+          if(sift(a, b) && one_point) return;
+        }
       }
     }
   }
@@ -1001,6 +1064,27 @@ void kummer_init()
   /* - 4*x3^4*f4*f6 + x3^4*f5^2 */
   mpz_mul(&k004, &coeffs[5], &coeffs[5]); mpz_mul(&tmp, &coeffs[4], &coeffs[6]);
   mpz_mul_ui(&tmp, &tmp, 4); mpz_sub(&k004, &k004, &tmp);
+}
+
+/* the coefficients as doubles for the tube, and whether it is used; the
+   words per row it leaves are sampled over a few hundred rows spread
+   over the box (deterministically), for the cost model */
+void tube_init(void)
+{
+  long n;
+  kd400 = mpz_get_d(&k400); kd310 = mpz_get_d(&k310);
+  kd301 = mpz_get_d(&k301); kd220 = mpz_get_d(&k220);
+  kd211 = mpz_get_d(&k211); kd202 = mpz_get_d(&k202);
+  kd130 = mpz_get_d(&k130); kd121 = mpz_get_d(&k121);
+  kd112 = mpz_get_d(&k112); kd103 = mpz_get_d(&k103);
+  kd040 = mpz_get_d(&k040); kd031 = mpz_get_d(&k031);
+  kd022 = mpz_get_d(&k022); kd013 = mpz_get_d(&k013);
+  kd004 = mpz_get_d(&k004);
+  for(n = 0; n <= 6; n++) { fd[n] = mpz_get_d(&coeffs[n]); }
+  /* a plain run may use the tube; choose_primes decides */
+  tube_mode = 0;
+  if(!all_points) { tube_sample(&tube_words, &tube_cells); }
+  return;
 }
 
 /* Compute the coefficients of the quadratic equation for the fourth
@@ -1477,7 +1561,12 @@ void message(long n, long total)
     case 1: printf("\nprob = 0, hence no solutions.\n"); break;
     case 2: printf("\nFound %ld rational points on K lifting to J.\n", total);
             break;
-    case 4: printf("%ld primes used for the first stage of sieving,\n",
+    case 4: if(tube_mode)
+            { printf("Sieving in the tube of the bound on the fourth coordinate:\n");
+              printf("about %.2f words per row, %.2f cells of the analysis per row.\n",
+                     tube_words, tube_cells);
+            }
+            printf("%ld primes used for the first stage of sieving,\n",
                    sieve_primes1);
             printf("%ld primes used for the first two stages together,\n",
                    sieve_primes2);

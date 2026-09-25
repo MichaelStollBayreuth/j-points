@@ -598,14 +598,16 @@ Please acknowledge use of the program in published work.
 y^2 = x^6 + 12 x^5 + 55 x^4 + 128 x^3 + 171 x^2 + 116 x + 21
 
 max. Height = 100
-3 primes used for the first stage of sieving,
+Sieving in the tube of the bound on the fourth coordinate:
+about 3.38 words per row, 0.12 cells of the analysis per row.
+0 primes used for the first stage of sieving,
 6 primes used for the first two stages together,
 9 primes used for all three stages together.
 Sieving primes:
- First stage: 7, 13, 11
- Second stage: 23, 17, 19
+ First stage: 
+ Second stage: 13, 23, 7, 17, 19, 11
  Third stage: 59, 61, 41
-Probabilities: Min(181) = 0.349499, Cut1(11) = 0.571751, Cut2(19) = 0.514506, Cut3(41) = 0.392348, Max(3) = 0.925926
+Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Max(3) = 0.925926
 
 (0, 0, 1, -19)
 (1, -4, 4, -91)
@@ -616,8 +618,8 @@ Probabilities: Min(181) = 0.349499, Cut1(11) = 0.571751, Cut2(19) = 0.514506, Cu
 (1, -4, 1, -44)
 (1, -2, -5, 64)
 
-78128 candidates survived the first stage,
-56788 candidates survived the second stage,
-2953 candidates survived the third stage.
+64586 candidates survived the first stage,
+48082 candidates survived the second stage,
+2528 candidates survived the third stage.
 
 Found 8 rational points on K lifting to J.

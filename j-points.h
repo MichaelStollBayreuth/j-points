@@ -79,6 +79,15 @@ extern unsigned char is_f_square[NUM_PRIMES][MAX_PRIME_EVEN];
 extern unsigned char is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
    /* The tables of the third stage, see j-points.c */
 
+extern double kd400, kd310, kd301, kd220, kd211, kd202, kd130, kd121, kd112,
+              kd103, kd040, kd031, kd022, kd013, kd004;
+extern double fd[7];
+extern int tube_mode;    /* the tube of plain runs, see j-sift.c */
+extern void tube_sample(double *, double *);
+extern long degree;
+extern MP_INT coeffs[7];
+extern int sift_tube(long, long, long);
+
 extern long num_surv1;   /* Used to count the survivors of the first stage */
 extern long num_surv2;   /* Used to count the survivors of the second stage */
 extern long num_surv3;   /* Used to count the survivors of the third stage */
