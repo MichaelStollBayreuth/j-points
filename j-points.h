@@ -62,6 +62,16 @@
 typedef unsigned long bit_array;
 #define zero ((bit_array)0);
 
+/* The width of the sieve's passes over the bit array, in words: 1 is the
+   scalar walk; 2 or 4 use vectors of that many words through gcc's
+   vector extension (SSE2 or AVX2 on x86-64, with -msse2 or -mavx2 -- see
+   the Makefile; without the instruction set the compiler emulates them,
+   slowly).  A wider pass needs table rows that can be read VW words at a
+   time from any offset, see sieve_rowlen in j-sift.c. */
+#ifndef VW
+#define VW 1
+#endif
+
 extern long prime[];
 extern long pnn[];
 extern int one_point;        /* A flag saying if one point is enough */
@@ -100,5 +110,6 @@ extern bit_array begmask, endmask;
 extern int check_one_point(long, long, long);
 extern void error(long);
 
+extern long sieve_rowlen(long);
 extern void init_sift(void);
 extern int sift(long, long);

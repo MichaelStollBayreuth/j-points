@@ -45,7 +45,8 @@
    row, full periods of p words and a tail; for each second-stage prime,
    the residue of the chunk's first word. */
 typedef struct
-{ long first;  /* the table word the chunk begins with, in [1, p] */
+{ long first;  /* the table word the chunk begins with: in [1, p] for the
+                  scalar walk, in [0, period) for the vector walk */
   long head;   /* the words up to the end of the table row (or the chunk) */
   long nper;   /* the full periods of p words after the head */
   long tail;   /* the words after the last full period */
@@ -53,9 +54,26 @@ typedef struct
 
 typedef struct
 { long w_low, w_high;  /* the words of the chunk: w_low <= i < w_high */
+  long nvec;           /* the vectors of VW words that cover the chunk */
   walk_spec *walk;     /* one per first-stage prime */
-  long *res;           /* per second-stage prime: w_low mod p */
+  long *res;           /* per sieving prime: w_low mod p */
 } chunk_spec;
+
+/* The walk of a prime p over the bit array reads its table row VW words
+   at a time from any offset, so the row holds the pattern over a period
+   that is a multiple of p and at least VW words, plus VW words of its
+   continuation (with VW = 1: p + 1 words, word p repeating word 0). */
+long sieve_period(long p)
+{ long P = p;
+  while(P < VW) { P += p; }
+  return(P);
+}
+long sieve_rowlen(long p) { return(sieve_period(p) + VW); }
+#if VW > 1
+typedef bit_array vec __attribute__((vector_size(VW*sizeof(bit_array))));
+typedef bit_array vecu __attribute__((vector_size(VW*sizeof(bit_array)),
+                                      aligned(sizeof(bit_array))));
+#endif
 
 static chunk_spec *chunks;
 static long num_chunks;
@@ -90,6 +108,7 @@ static long row3_a = -1, row3_b = 0;     /* the row the data is for */
    of rows of one residue class of a, and the table rows of the current
    (a, b): rowptr[n] for the n-th prime */
 static long pr[NUM_PRIMES], rowlen[NUM_PRIMES], blocklen[NUM_PRIMES];
+static long period[NUM_PRIMES];      /* the period of the walk, see above */
 static bit_array *rowptr[NUM_PRIMES];
 static long w_low_all, w_high_all;   /* the words of a whole row */
 
@@ -110,7 +129,8 @@ void init_sift(void)
   w_low_all = w_low; w_high_all = w_high;
   for(n = 0; n < sieve_primes3; n++)
   { pr[n] = prime[pnn[n]];
-    rowlen[n] = pr[n] + 1;
+    period[n] = sieve_period(pr[n]);
+    rowlen[n] = sieve_rowlen(pr[n]);
     blocklen[n] = pr[n]*rowlen[n];
   }
   for(n = 0; n < MAX_PRIME_EVEN; n++) { all_ones[n] = 1; }
@@ -119,7 +139,8 @@ void init_sift(void)
     recip3[n] = ((1UL << 32) + p - 1) / p;
   }
   num_chunks = CEIL(w_high - w_low, array_size);
-  survivors = (bit_array *)malloc(array_size*sizeof(bit_array));
+  /* the bit array, aligned for the vector walk and padded by a vector */
+  survivors = (bit_array *)aligned_alloc(64, ((array_size + VW)*sizeof(bit_array) + 63)/64*64);
   chunks = (chunk_spec *)malloc(num_chunks*sizeof(chunk_spec));
   walk = (walk_spec *)malloc((num_chunks*np1 + 1)*sizeof(walk_spec));
   res = (long *)malloc((num_chunks*npr + 1)*sizeof(long));
@@ -134,17 +155,27 @@ void init_sift(void)
     ch->w_high = ch->w_low + array_size;
     if(ch->w_high > w_high) { ch->w_high = w_high; }
     range = ch->w_high - ch->w_low;
+    ch->nvec = (range + VW - 1)/VW;
     ch->walk = &walk[k*np1];
     ch->res = &res[k*npr];
     for(n = 0; n < np1; n++)
-    { long p = prime[pnn[n]], start = ch->w_low % p;
+    { long p = prime[pnn[n]], start;
       walk_spec *w = &ch->walk[n];
-      if(start < 0) { start += p; }
-      w->first = (start == 0) ? p : start;
-      w->head = p - w->first;
-      if(w->head > range) { w->head = range; }
-      w->nper = (range - w->head)/p;
-      w->tail = range - w->head - w->nper*p;
+      if(VW == 1)
+      { start = ch->w_low % p;
+        if(start < 0) { start += p; }
+        w->first = (start == 0) ? p : start;
+        w->head = p - w->first;
+        if(w->head > range) { w->head = range; }
+        w->nper = (range - w->head)/p;
+        w->tail = range - w->head - w->nper*p;
+      }
+      else
+      { start = ch->w_low % period[n];
+        if(start < 0) { start += period[n]; }
+        w->first = start;
+        w->head = w->nper = w->tail = 0;
+      }
     }
     for(n = 0; n < npr; n++)
     { long p = pr[n], start = ch->w_low % p;
@@ -624,8 +655,11 @@ int sift_tube(long a, long b_first, long m)
  +------------------------------------------------------------------------*/
 
 /* The walk of the n-th prime over the chunk: OP(word of the bit array,
-   table word) for every word, the table row read from its word w->first
-   up to its end, then in full periods of p words, then the tail. */
+   table word) for every word.  The scalar walk (VW = 1) reads the table
+   row from its word w->first up to its end, then in full periods of p
+   words, then the tail; the vector walk reads VW words at a time from
+   the offset w->first on, wrapping at the period. */
+#if VW == 1
 #define WALK(OP) \
   { bit_array *surv = survivors; \
     bit_array *siv1 = &rowptr[n][w->first]; \
@@ -645,6 +679,21 @@ int sift_tube(long a, long b_first, long m)
   }
 #define AND_OP(d, s) ((d) &= (s))
 #define FILL_OP(d, s) ((d) = mask & (s))
+#else
+#define WALK(OP) \
+  { vec *surv = (vec *)survivors; \
+    bit_array *row = rowptr[n]; \
+    long t = w->first, P = period[n], j; \
+    (void)p; \
+    for(j = ch->nvec; j; j--) \
+    { vec s = *(vecu *)(row + t); \
+      OP(*surv, s); surv++; \
+      t += VW; t -= (t >= P) ? P : 0; \
+    } \
+  }
+#define AND_OP(d, s) ((d) &= (s))
+#define FILL_OP(d, s) ((d) = vmask & (s))
+#endif
 
 /* Sieve the k-th chunk of the row (a, b): the bit array set from the mask
    (all bits, or the odd c when a and b are even) and the table of the
@@ -655,6 +704,10 @@ static int sift0(long a, long b, long k, bit_array mask, long c0)
 {
   chunk_spec *ch = &chunks[k];
   long n, range = ch->w_high - ch->w_low;
+#if VW > 1
+  vec vmask;
+  for(n = 0; n < VW; n++) { vmask[n] = mask; }
+#endif
   /* the fill, merged with the first prime's pass if there is one */
   if(sieve_primes1 == 0)
   { bit_array *surv = survivors;
@@ -694,6 +747,7 @@ static int sift0(long a, long b, long k, bit_array mask, long c0)
   }
 #endif
   /* Check the points that have survived the sieve if they really are points */
+#if VW == 1
   { bit_array *surv0 = &survivors[0];
     bit_array nums;
     long i;
@@ -702,6 +756,26 @@ static int sift0(long a, long b, long k, bit_array mask, long c0)
       { if(check_point(nums, a, b, ch->w_low + i, i, ch->res) && one_point)
         { return(1); }
   } } }
+#else
+  { /* the padding beyond the chunk cleared, then a vector at a time */
+    vec *sv = (vec *)survivors;
+    long i, j;
+    for(i = range; i < ch->nvec*VW; i++) { survivors[i] = 0; }
+    for(j = 0; j < ch->nvec; j++)
+    { vec v = sv[j];
+      bit_array any = 0;
+      for(i = 0; i < VW; i++) { any |= v[i]; }
+      if(any)
+      { for(i = 0; i < VW; i++)
+        { bit_array nums = v[i];
+          if(nums && check_point(nums, a, b, ch->w_low + j*VW + i, j*VW + i, ch->res)
+             && one_point)
+          { return(1); }
+        }
+      }
+    }
+  }
+#endif
   return(0);
 }
 
