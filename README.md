@@ -286,10 +286,12 @@ sieve together.
     condition holds throughout taken whole: 1.1x on c4's plain run.
   + The passes of the sieve over the bit array can be built with vectors of
     two or four words (`make VECTOR=sse2` or `avx2`), behind a compile-time
-    switch; the vector walk runs through each period of a table row
-    without a test per vector. 1.25x on `-a` runs with AVX2 and 1.2x with
-    SSE2 on a recent laptop, 1.3x with SSE2 on an older desktop (Ivy
-    Bridge); nothing for a plain run in the tube, which has no passes.
+    switch; the vector walk runs through each period of a table row without
+    a test per vector. 1.25x on `-a` runs with AVX2 and 1.2x with SSE2 on a
+    recent laptop, 1.3-1.5x with AVX2 and 1.2-1.3x with SSE2 on two desktops
+    (an eight-core Xeon E-2288G, a 16-core i7-13700K), 1.3x with SSE2 on an
+    old Ivy Bridge; nothing for a plain run in the tube, which has no
+    passes.
   + A condition at 2: a point with coprime integer coordinates satisfies
     the Kummer equation and has a certain square among its coordinates
     (the quantity A^2 of the lifting test), so a class of (a, b, c) modulo
@@ -316,8 +318,11 @@ sieve together.
     threads in order, each sieves its rows with its own state, and the
     points of each value are printed in order, so the output is that of a
     single thread. Four times faster with eight threads on the record curve
-    on a laptop with two performance and eight efficiency cores, 2.6-2.8x
-    with three threads on a four-core desktop, plain runs included.
+    on a laptop with two performance and eight efficiency cores; 6.4x with
+    eight threads on an eight-core Xeon (7.4x with its hyperthreads), 7.4x
+    with eight and 11.5x with 24 threads on a 16-core i7 with eight
+    performance and eight efficiency cores; plain runs in the tube scale
+    less (5-8x there), the sieve of whole rows and of the real region alike.
 
 Michael Stoll, October 1998 - September 2026.
 
