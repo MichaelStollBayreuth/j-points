@@ -93,6 +93,9 @@ extern double kd400, kd310, kd301, kd220, kd211, kd202, kd130, kd121, kd112,
               kd103, kd040, kd031, kd022, kd013, kd004;
 extern double fd[7];
 extern int tube_mode;    /* the tube of plain runs, see j-sift.c */
+extern bit_array mask2[64][64];
+extern unsigned char alive2[64][64];
+extern int use2;         /* the condition at 2, see j-points.c */
 extern void tube_sample(double *, double *);
 extern long degree;
 extern MP_INT coeffs[7];

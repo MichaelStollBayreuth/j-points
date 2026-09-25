@@ -142,6 +142,12 @@ There are a number of improvements to this basic scheme.
    height bound (from 1.3x to 14x at 2000 on the test curves, 4.5x to 20x
    at 10000); a cost model decides between the tube and the sieve of whole
    rows, which stays better where the tube is fat.
+6. The prime 2 contributes through a table modulo 64: a point's integer
+   coordinates satisfy the Kummer equation, and the quantity A^2 of the
+   lifting test is a square, so a class of (a, b, c) modulo 64 must admit
+   some fourth coordinate (of odd or even denominator) with both. The
+   admitted c of a class of (a, b) form the word that fills the bit array
+   of the row, and rows whose class admits nothing are not sieved.
 
 ## Examples
 
@@ -245,6 +251,16 @@ sieve together.
   + The passes of the sieve over the bit array can be built with vectors
     of two or four words (`make VECTOR=sse2` or `avx2`), behind a
     compile-time switch: 1.2x on `-a` runs with AVX2, 1.1x with SSE2.
+  + A condition at 2: a point with coprime integer coordinates satisfies
+    the Kummer equation and has a certain square among its coordinates
+    (the quantity A^2 of the lifting test), so a class of (a, b, c) modulo
+    64 can carry a point only if some fourth coordinate, of odd or of even
+    denominator, satisfies both modulo 64. The admitted c of a class of
+    (a, b) form one word, which fills the bit array of the row, and rows
+    whose class admits nothing are skipped. Measured at height bounds of
+    500 and more, and only when it admits less than everything modulo 16.
+    1.5x on `-a` runs of small-coefficient curves, 1.1x on #28, nothing on
+    the record curve (f is a square modulo 4 there).
 
 Michael Stoll, October 1998 - September 2026.
 
