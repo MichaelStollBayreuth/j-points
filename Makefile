@@ -39,18 +39,35 @@ VFLAGS_sse2 = -DVW=2 -msse2
 VFLAGS = ${VFLAGS_${VECTOR}}
 LFLAGS = -pthread -lgmp -lgcc -lc -lm
 
+# Machine-dependent tuning of the cost model that chooses the sieving primes,
+# their stages and the mode of the sieve (the COST_ constants of j-points.c).
+# "make tune" measures them and writes tuning.mk; without it the values
+# compiled into j-points.c are used.  This needs GNU make for the
+# conditionals; if yours is not GNU make, delete the block and either leave
+# tuning.mk out or trust it unconditionally.
+-include tuning.mk
+
+TUNE_CONFIG = VECTOR=${VECTOR}
+ifdef TUNED_FOR
+ifneq (${TUNED_FOR},${TUNE_CONFIG})
+$(warning tuning.mk was measured for "${TUNED_FOR}", but this build is)
+$(warning "${TUNE_CONFIG}" -- ignoring it; run "make tune" again)
+TUNEFLAGS =
+endif
+endif
+
 VERSION = 3.0
 
 # Files that make up the distribution
 DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md gpl-2.0.txt \
             testbase testcurves2 testbase2 testbase3 testbase4 \
             testcurves-rich testbase-rich \
-            test2.sh test3.sh test4.sh testbrute.sh \
+            test2.sh test3.sh test4.sh testbrute.sh tune.sh \
             verify-test2.sh verify-test3.py mkref4.m
 
 # Temporary files that are generated during build
 # and can be removed afterwards
-TEMPFILES = j-points.o j-sift.o j-sift.s test.out test2.out test3.out test4.out testrich.out testthreads.out \
+TEMPFILES = j-points.o j-sift.o j-sift.s build.stamp build.stamp.tmp test.out test2.out test3.out test4.out testrich.out testthreads.out \
             testbrute.out testbrute-sieved.out testbrute-exact.out testbrute-failed.out \
             verify-test2-failed.out verify-test3.m
 
@@ -135,6 +152,14 @@ testthreads: j-points testbase testbase2 testbase-rich test2.sh
 	JPOPTS=-a\ -t\ 3 CURVES=testcurves-rich ./test2.sh > testthreads.out 2>&1
 	cmp -s testbase-rich testthreads.out || ${FAIL}
 
+# Measure the constants of the cost model on this machine and write them to
+# tuning.mk (see tune.sh).  Deliberately not part of "make all": it takes
+# about 40 minutes a pass, wants an otherwise idle machine, and must not run
+# under "make -j".  Run "make" afterwards to rebuild with the result.
+.PHONY: tune
+tune: j-points
+	@TUNE_CONFIG='${TUNE_CONFIG}' ./tune.sh
+
 install-bin: j-points
 	${INSTALL} j-points ${INSTALL_DIR}/bin/
 	chmod 755 ${INSTALL_DIR}/bin/j-points
@@ -149,18 +174,26 @@ clean:
 	${RM} ${TEMPFILES}
 
 distclean: clean
-	${RM} ${TARGETFILES}
+	${RM} ${TARGETFILES} tuning.mk
 
 j-points: j-points.o j-sift.o
 	${CC} j-points.o j-sift.o -o j-points ${LFLAGS} ${CCFLAGS}
 
-j-points.o: j-points.c j-points.h
-	${CC} j-points.c -c -o j-points.o ${CCFLAGS0} ${VFLAGS} ${CCFLAGS}
+# What is compiled depends on VECTOR and on tuning.mk, which make cannot see
+# by itself: build.stamp records the flags in use, so that a change to
+# either rebuilds the objects.
+.PHONY: FORCE
+build.stamp: FORCE
+	@echo '${VFLAGS} ${TUNEFLAGS}' > $@.tmp; \
+	 if cmp -s $@.tmp $@; then rm $@.tmp; else mv $@.tmp $@; fi
 
-j-sift.o: j-sift.c j-points.h
+j-points.o: j-points.c j-points.h build.stamp
+	${CC} j-points.c -c -o j-points.o ${CCFLAGS0} ${VFLAGS} ${TUNEFLAGS} ${CCFLAGS}
+
+j-sift.o: j-sift.c j-points.h build.stamp
 	${CC} j-sift.c -c -o j-sift.o ${CCFLAGS0} -funroll-loops ${VFLAGS} ${CCFLAGS}
 
-j-sift.s: j-sift.c j-points.h
+j-sift.s: j-sift.c j-points.h build.stamp
 	${CC} j-sift.c -S -o j-sift.s ${CCFLAGS0} -funroll-loops ${VFLAGS} ${CCFLAGS}
 
 

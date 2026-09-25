@@ -46,6 +46,9 @@
 #        report of the run, the points with -a (the same set as before the
 #        transformation, checked against the unsieved run and Magma), and
 #        -1 (the first point of the transformed search)
+# 49     -c with a name the model does not have: an error
+# 50     -c: two constants of the cost model set (the cell of the tube's
+#        analysis priced out, so the box is sieved), listed in the report
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
 # whose target fails with 1 when they differ)
@@ -106,3 +109,5 @@ f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -w 50 -n 3 -M 6 -N 
 f "grep -v '^This is j-points'" '0 -1 2 -1 3 1 1' 100 -n 3 -M 6 -N 9
 t '0 -1 2 -1 3 1 1' 60 -q -a
 t '0 -1 2 -1 3 1 1' 300 -q -1
+e '21 116 171 128 55 12 1' 100 -c FOO=1
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -c CELL=1e6,AND=0.45
