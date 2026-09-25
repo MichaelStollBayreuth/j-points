@@ -1,0 +1,20 @@
+# Point-rich curves for "make testrich": the curves of ratpoints' testdata-many.h
+# (genus 2 curves with many rational points) whose coefficients are small; the
+# ones with coefficients of 10^6 and more have no point of naive height below
+# 10^4 on the Kummer surface, so they say nothing here.  Same format as
+# testcurves2: coefficients a_0 ... a_d, a height bound, a comment.  testbase-rich
+# is the output of 2.1 on this list ("CURVES=testcurves-rich ./test2.sh"),
+# a baseline, to be verified by "CURVES=testcurves-rich REF=testbase-rich
+# ./verify-test2.sh" before the list joins the tests "make test" runs.
+1 1 -2 -15 13 2 1;300;ratpoints testdata-many.h #28
+4 13 1 -19 -4 0 9;300;ratpoints testdata-many.h #41
+1 -20 2 21 13 -9 1;300;ratpoints testdata-many.h #44
+1 4 16 -3 -11 5 4;300;ratpoints testdata-many.h #31
+4 -3 0 -5 -4 8 1;300;ratpoints testdata-many.h #34
+4 8 7 6 -2 -2 4;300;ratpoints testdata-many.h #27
+4 6 -4 -4 3 -2 1;300;ratpoints testdata-many.h #21
+9 24 -10 -20 2 -12 16;300;ratpoints testdata-many.h #35
+25 10 -73 -46 88 -4 1;300;ratpoints testdata-many.h #46
+4 4 -5 7 2 -4 1;300;ratpoints testdata-many.h #18
+1 1 -2 -15 13 2 1;1000;ratpoints testdata-many.h #28
+4 13 1 -19 -4 0 9;1000;ratpoints testdata-many.h #41

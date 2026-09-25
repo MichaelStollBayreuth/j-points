@@ -14,7 +14,9 @@ JP=${JP:-./j-points}
 # whose target fails with 1 when they differ)
 [ -x "$JP" ] || { echo "$JP: not an executable" >&2; exit 2; }
 JPOPTS=${JPOPTS:-}
-grep -v '^#' testcurves2 | grep -v '^$' | while IFS=';' read -r coeffs h comment; do
+# the list of curves, testcurves2 by default (testcurves-rich for "make testrich")
+CURVES=${CURVES:-testcurves2}
+grep -v '^#' "$CURVES" | grep -v '^$' | while IFS=';' read -r coeffs h comment; do
   echo "# j-points '$coeffs' $h"
   "$JP" "$coeffs" "$h" -q $JPOPTS | LC_ALL=C sort
 done
