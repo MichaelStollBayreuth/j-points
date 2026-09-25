@@ -154,6 +154,10 @@ double density2 = 1.0, empty2 = 0.0;
 _Thread_local MP_INT cpf1, cpf2, cpf3, cpfa, cpfb, cpfc;
 
 long degree;
+/* The curve is searched in a form that makes the search cheaper when
+   there is one, see normalise_curve: reversed (x -> 1/x) and negated
+   (x -> -x); the points are printed for the curve given. */
+int reversed = 0, negated = 0;
 long coeffs_mod_p[NUM_PRIMES][8];
                          /* The coefficients of f reduced modulo the various
                             primes */
@@ -205,6 +209,7 @@ bit_array begmask, endmask;  /* Bit masks for the beginning and end of
 
 void init_main(void);
 void init_thread_mpz(void);
+void normalise_curve(void);
 void find_points(void);
 void read_input(long, char *argv[]);
 char *scan_mpz(char*, MP_INT*);
@@ -244,6 +249,7 @@ int main(int argc, char *argv[])
     message(6, height);
     message(3, 0);
   }
+  normalise_curve();
   begmask = (~0UL)<<((-height) & LONG_MASK);
   endmask = (~0UL)>>((~height) & LONG_MASK);
   s = 2*CEIL(height+1, LONG_LENGTH);
@@ -406,6 +412,41 @@ char *scan_mpz(char *s, MP_INT *x)
   if(neg) mpz_neg(&tmp2, &tmp2);
   mpz_set(x, &tmp2);
   return s;
+}
+
+/* The search is cheapest for a monic quintic, whose points have a square
+   first coordinate: the units of work are the squares up to h then,
+   sqrt(h) instead of h.  A sextic with f0 = 0 and f1 = 1 becomes one
+   under x -> 1/x, y -> y/x^3, which takes y^2 = f(x) to y^2 = x^6 f(1/x)
+   (the coefficients in the opposite order), and a quintic with leading
+   coefficient -1 under x -> -x (the odd coefficients negated); a sextic
+   with f0 = 0 and f1 = -1 needs both.  The Kummer coordinates of a point
+   go to (c : b : a : d) under the first map (the fourth coordinate
+   x4 = (F0(x, u) - 2 y v) / (x - u)^2 in the Cassels-Flynn normalisation
+   is unchanged, since F0 reverses with f) and to (a : -b : c : d) under
+   the second, so both maps preserve the height, and the points of the
+   curve given are those of the curve searched, transformed back when
+   they are printed.  The messages name the curve searched. */
+void normalise_curve(void)
+{
+  long i;
+  if(degree == 6 && mpz_sgn(&coeffs[0]) == 0 && mpz_cmpabs_ui(&coeffs[1], 1) == 0)
+  { for(i = 0; i < 3; i++) { mpz_swap(&coeffs[i], &coeffs[6-i]); }
+    degree = 5;
+    reversed = 1;
+  }
+  if(degree == 5 && mpz_cmp_si(&coeffs[5], -1) == 0)
+  { for(i = 1; i <= 5; i += 2) { mpz_neg(&coeffs[i], &coeffs[i]); }
+    negated = 1;
+  }
+  if((reversed || negated) && !quiet)
+  { printf("The search runs on y^2 = "); print_poly(coeffs, degree);
+    printf("(the curve under %s%s%s), a monic quintic, and the points are\n"
+           "transformed back.\n\n",
+           reversed ? "x -> 1/x" : "", (reversed && negated) ? " and " : "",
+           negated ? "x -> -x" : "");
+  }
+  return;
 }
 
 /* Is f squarefree?  It must be, for a curve of genus 2: the gcd of f and
@@ -1660,6 +1701,12 @@ void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
     { fmt[++j] = 'Z'; fmt[++j] = 'd'; i += 2; }
   }
   fmt[j] = 0;
+  /* the point of the curve given, its first nonzero coordinate positive */
+  if(reversed) { MP_INT *x = a; a = c; c = x; }
+  if(negated) { mpz_neg(b, b); }
+  if((reversed || negated)
+     && (mpz_sgn(a) < 0 || (mpz_sgn(a) == 0 && (mpz_sgn(b) < 0 || (mpz_sgn(b) == 0 && mpz_sgn(c) < 0)))))
+  { mpz_neg(a, a); mpz_neg(b, b); mpz_neg(c, c); mpz_neg(d, d); }
   if(num_threads == 1) { gmp_printf(fmt, a, b, c, d); }
   else
   { char *s;
@@ -1689,6 +1736,11 @@ static void emit(char *s)
 static void emit_point(long a, long b, long c, long d)
 {
   char *s;
+  /* the point of the curve given, its first nonzero coordinate positive */
+  if(reversed) { long x = a; a = c; c = x; }
+  if(negated) { b = -b; }
+  if(a < 0 || (a == 0 && (b < 0 || (b == 0 && c < 0))))
+  { a = -a; b = -b; c = -c; d = -d; }
   if(num_threads == 1) { printf(print_format, a, b, c, d); return; }
   if(asprintf(&s, print_format, a, b, c, d) < 0) { error(7); }
   emit(s);

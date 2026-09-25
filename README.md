@@ -276,6 +276,13 @@ sieve together.
     500 and more, and only when it admits less than everything modulo 16.
     1.5x on `-a` runs of small-coefficient curves, 1.1x on #28, nothing on
     the record curve (f is a square modulo 4 there).
+  + A sextic with f0 = 0 and f1 = 1 or -1 is searched as the monic quintic
+    it becomes under x -> 1/x (and x -> -x), a quintic with leading
+    coefficient -1 under x -> -x: the first coordinate is a square then, so
+    the search runs over sqrt(h) values of it instead of h. The Kummer
+    coordinates go to (c : b : a : d) and (a : -b : c : d), which keeps the
+    height, so the points of the curve given are exactly those found,
+    transformed back. 17x on such a curve at 2000.
   + The polynomial is checked to be squarefree. The escapes `\n`, `\t` and
     `\\` in the format of `-f` are interpreted. `-w bound4` bounds the
     fourth coordinate separately from the first three, which gives the
