@@ -539,7 +539,7 @@ The polynomial must have degree at least 5.
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-w bound4] [-1] [-q] [-a]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
 # <1 2 3 4 5> <100>
 
 The polynomial must have degree at least 5.
@@ -566,7 +566,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-w bound4] [-1] [-q] [-a]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-n>
 
 Wrong syntax for optional arguments:
@@ -575,7 +575,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-w bound4] [-1] [-q] [-a]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-p> <0>
 
 Wrong syntax for optional arguments:
@@ -584,7 +584,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-w bound4] [-1] [-q] [-a]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-s> <0>
 
 Wrong syntax for optional arguments:
@@ -593,7 +593,7 @@ Wrong syntax for optional arguments:
 Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
-                [-w bound4] [-1] [-q] [-a]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
 # <21 116 171 128 55 12 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
 
 
@@ -809,3 +809,42 @@ Found 2 rational points on K lifting to J.
 (0, 1, 0, 0)
 # <0 -1 2 -1 3 1 1> <300> <-q> <-1>
 (0, 0, 4, -11)
+# <21 116 171 128 55 12 1> <100> <-c> <FOO=1>
+
+The argument of -c must be NAME=value, or several of them separated
+by commas, with a positive value and one of the names
+ AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
+
+# <21 116 171 128 55 12 1> <100> <-c> <CELL=1e6,AND=0.45> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = x^6 + 12 x^5 + 55 x^4 + 128 x^3 + 171 x^2 + 116 x + 21
+
+max. Height = 100
+11 primes used for the first stage of sieving,
+11 primes used for the first two stages together,
+15 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.45 CELL=1e+06
+Sieving primes:
+ First stage: 7, 13, 11, 5, 17, 19, 23, 29, 3, 31, 37
+ Second stage: 
+ Third stage: 59, 61, 41, 53
+Probabilities: Min(181) = 0.349499, Cut1(37) = 0.457011, Cut3(53) = 0.406221, Max(3) = 0.925926
+
+(0, 0, 1, -19)
+(1, -4, 4, -91)
+(0, 1, -2, 38)
+(0, 1, -2, 26)
+(1, -6, -1, -24)
+(1, -4, -3, 28)
+(1, -4, 1, -44)
+(1, -2, -5, 64)
+
+3451 candidates survived the first stage,
+3633 candidates survived the second stage,
+108 candidates survived the third stage.
+
+Found 8 rational points on K lifting to J.

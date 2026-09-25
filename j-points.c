@@ -65,41 +65,103 @@ long pnn[NUM_PRIMES+1];  /* This array holds the numbers (= index in prime[])
 long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
                                  of the table; -p sets it */
 
-/* The cost model that chooses the sieving primes and their stages (see
-   choose_primes): the costs in cycles of one core, measured on the curve
-   of test1 at 2000 with the sieve of 3.0.  Only their ratios matter for
-   the choice, and those are much the same on any current machine. */
+/* The cost model that chooses the sieving primes, their stages and the
+   mode of the sieve (see choose_primes): the costs in cycles of one core,
+   measured on the curve of test1 at 2000 with the sieve of 3.0.  Only
+   their ratios matter for the choice, and those are much the same on any
+   current machine.  These are the defaults: "make tune" measures the
+   machine's own and writes them to tuning.mk, whose -DCOST_X=value
+   replaces a default here, and -c X=value replaces it for one run. */
+#ifndef COST_AND
 #define COST_AND      0.9  /* one word of one first-stage pass ... */
+#endif
+#ifndef COST_SIZE
 #define COST_SIZE   270.0  /* ... times 1 + p/COST_SIZE: the tables of the
                               larger primes spill out of the cache (12%
                               more per word for a set of primes with mean
                               84 than for one with mean 51) */
+#endif
+#ifndef COST_WORD
 #define COST_WORD    56.0  /* a word surviving the first stage: found and
                               handed to the second stage */
+#endif
+#ifndef COST_TEST2
 #define COST_TEST2    8.0  /* one second-stage test of a word */
+#endif
+#ifndef COST_BIT
 #define COST_BIT     30.0  /* a bit surviving the second stage: found,
                               its coprimality tested */
+#endif
+#ifndef COST_ROW3
 #define COST_ROW3    40.0  /* per third-stage prime, the data of a row
                               that has such a bit (see row3_setup) */
+#endif
+#ifndef COST_TEST3
 #define COST_TEST3   15.0  /* one third-stage test of a bit */
+#endif
+#ifndef COST_EXACT
 #define COST_EXACT 1300.0  /* the exact check of a triple */
+#endif
+#ifndef COST_ROW
 #define COST_ROW    300.0  /* a row of the box sieve besides its passes:
                               the fill, the scan, the set-up */
+#endif
+#ifndef COST_CELL
 #define COST_CELL   320.0  /* a cell of the tube's analysis */
+#endif
+#ifndef COST_TWORD
 #define COST_TWORD   12.0  /* a word the tube leaves, besides its tests */
+#endif
+#ifndef COST_TTEST
 #define COST_TTEST    4.0  /* one test of such a word (no early exit) */
+#endif
+#ifndef COST_TROW
 #define COST_TROW    45.0  /* a row with words in the tube: the set-up */
+#endif
+#ifndef COST_RROW
 #define COST_RROW    40.0  /* a row's real region (row_region) ... */
+#endif
+#ifndef COST_REXCL
 #define COST_REXCL   15.0  /* ... plus this per interval of c it excludes
                               (two per interval where f is negative) */
+#endif
+#ifndef COST_RCUT
 #define COST_RCUT    30.0  /* the cut of a row's tube words to it (row_cut) */
+#endif
+#ifndef COST_RANGE
 #define COST_RANGE   20.0  /* a range of words of the region, besides its passes */
+#endif
+#ifndef COST_PASS
 #define COST_PASS     5.0  /* one pass over such a range, besides its words */
+#endif
+#ifndef COST_TABLE
 #define COST_TABLE   13.0  /* one word of a sieve table at set-up */
+#endif
+#ifndef COST_INIT
 #define COST_INIT   110.0  /* one class (1, b, c) of the exact table of a
                               prime whose rate was sampled, at set-up */
+#endif
 #define SAMPLE_PAIRS 4096  /* the classes (1, b, c) sampled for the rate
                               of a prime, see init_fmodpsquare */
+
+/* The constants in force: the defaults, or what -c set (set = 1 then) */
+static double cost_and = COST_AND, cost_size = COST_SIZE, cost_word = COST_WORD,
+  cost_test2 = COST_TEST2, cost_bit = COST_BIT, cost_row3 = COST_ROW3,
+  cost_test3 = COST_TEST3, cost_exact = COST_EXACT, cost_row = COST_ROW,
+  cost_cell = COST_CELL, cost_tword = COST_TWORD, cost_ttest = COST_TTEST,
+  cost_trow = COST_TROW, cost_rrow = COST_RROW, cost_rexcl = COST_REXCL,
+  cost_rcut = COST_RCUT, cost_range = COST_RANGE, cost_pass = COST_PASS,
+  cost_table = COST_TABLE, cost_init = COST_INIT;
+static struct { const char *name; double *value; int set; } cost_names[] =
+{ {"AND", &cost_and, 0}, {"SIZE", &cost_size, 0}, {"WORD", &cost_word, 0},
+  {"TEST2", &cost_test2, 0}, {"BIT", &cost_bit, 0}, {"ROW3", &cost_row3, 0},
+  {"TEST3", &cost_test3, 0}, {"EXACT", &cost_exact, 0}, {"ROW", &cost_row, 0},
+  {"CELL", &cost_cell, 0}, {"TWORD", &cost_tword, 0}, {"TTEST", &cost_ttest, 0},
+  {"TROW", &cost_trow, 0}, {"RROW", &cost_rrow, 0}, {"REXCL", &cost_rexcl, 0},
+  {"RCUT", &cost_rcut, 0}, {"RANGE", &cost_range, 0}, {"PASS", &cost_pass, 0},
+  {"TABLE", &cost_table, 0}, {"INIT", &cost_init, 0} };
+#define NUM_COSTS (sizeof(cost_names)/sizeof(cost_names[0]))
+static int costs_set = 0;   /* whether -c set any of them */
 
 bit_array bits[LONG_LENGTH]; /* An array of bit masks */
 
@@ -294,6 +356,31 @@ int main(int argc, char *argv[])
  * get at the input                                                       *
  **************************************************************************/
 
+/* The argument of -c: NAME=value, several separated by commas, the names
+   those of the COST_ constants without the prefix, the values positive;
+   0 if it is not of that form */
+static int set_costs(char *s)
+{
+  while(*s)
+  { char *eq = strchr(s, '='), *end;
+    size_t k;
+    double v;
+    if(eq == NULL) { return(0); }
+    for(k = 0; k < NUM_COSTS; k++)
+    { if(strlen(cost_names[k].name) == (size_t)(eq - s)
+         && strncmp(cost_names[k].name, s, eq - s) == 0) { break; } }
+    if(k == NUM_COSTS) { return(0); }
+    v = strtod(eq + 1, &end);
+    if(end == eq + 1 || !(v > 0.0) || (*end != '\0' && *end != ','))
+    { return(0); }
+    *cost_names[k].value = v;
+    cost_names[k].set = 1;
+    costs_set = 1;
+    s = (*end == ',') ? end + 1 : end;
+  }
+  return(1);
+}
+
 void read_input(long argc, char *argv[])
 {
   { char *s = argv[1];
@@ -382,6 +469,13 @@ void read_input(long argc, char *argv[])
           i++;
           if(sscanf(argv[i], " %ld", &num_threads) != 1) error(6);
           if(num_threads < 1) error(6);
+          i++;
+          break;
+        case 'c': /* the constants of the cost model: NAME=value, several
+                     separated by commas */
+          if(argc == i) error(6);
+          i++;
+          if(!set_costs(argv[i])) error(10);
           i++;
           break;
         case 'p': /* set number of primes used */
@@ -802,7 +896,7 @@ static double choose_primes_mode(int mode, int cut)
                    ? floor(sqrt((double)height)) + 1.0 : (double)(height + 1));
   double bits;                                      /* bits per row */
   double best = -1.0, fixed, passx = 0.0;   /* per row; passx per pass */
-  double rrow = COST_RROW + COST_REXCL * 2.0 * (double)num_neg;   /* a row's real region */
+  double rrow = cost_rrow + cost_rexcl * 2.0 * (double)num_neg;   /* a row's real region */
   long b1 = 0, b2 = 0, b3 = 0;
   long n1lo, n1hi, pin1 = sieve_primes1;
   double logr[NUM_PRIMES], tabcost[NUM_PRIMES], initcost[NUM_PRIMES];
@@ -817,16 +911,16 @@ static double choose_primes_mode(int mode, int cut)
   { W = cut ? tube_words_cut : tube_words;
     if(W < 0.01) { W = 0.01; }
     pin1 = 0;
-    fixed = tube_cells * COST_CELL + tube_rows * (COST_TROW + (cut ? rrow + COST_RCUT : 0.0))
-            + W * COST_TWORD;
+    fixed = tube_cells * cost_cell + tube_rows * (cost_trow + (cut ? rrow + cost_rcut : 0.0))
+            + W * cost_tword;
   }
   else if(mode == 2)
   { W = (reg_words > 0.01) ? reg_words : 0.01;
-    fixed = rrow + reg_rows * COST_ROW + reg_ranges * COST_RANGE;
-    passx = reg_ranges * COST_PASS;
+    fixed = rrow + reg_rows * cost_row + reg_ranges * cost_range;
+    passx = reg_ranges * cost_pass;
   }
   else
-  { fixed = COST_ROW; }
+  { fixed = cost_row; }
   bits = (double)LONG_LENGTH * W;
   /* the condition at 2: the rows its empty classes remove, the density
      the survivors start from */
@@ -834,14 +928,14 @@ static double choose_primes_mode(int mode, int cut)
   for(n = 0; n < num_primes; n++)
   { double p = (double)prec[n].p;
     logr[n] = (prec[n].r > 0.0) ? -log(prec[n].r) : 1.0e9;
-    tabcost[n] = COST_TABLE * p*p*(p + 1.0);
-    initcost[n] = (p*p > (double)SAMPLE_PAIRS) ? COST_INIT * p*p : 0.0;
+    tabcost[n] = cost_table * p*p*(p + 1.0);
+    initcost[n] = (p*p > (double)SAMPLE_PAIRS) ? cost_init * p*p : 0.0;
   }
   /* the first stage's ranking of the table primes */
   for(n = 0; n < num_primes; n++)
   { if(prec[n].p <= MAX_TABLE_PRIME)
     { list1[ne].n = n;
-      list1[ne].v = logr[n] / (W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE)
+      list1[ne].v = logr[n] / (W * cost_and * (1.0 + (double)prec[n].p / cost_size)
                                + passx + (tabcost[n] + initcost[n]) / rows);
       ne++;
     }
@@ -860,7 +954,7 @@ static double choose_primes_mode(int mode, int cut)
     for(k = 0; k < n1; k++)
     { n = list1[k].n;
       used[n] = 1;
-      cost1 += W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE) + passx;
+      cost1 += W * cost_and * (1.0 + (double)prec[n].p / cost_size) + passx;
       setup1 += tabcost[n] + initcost[n];
       rho1 *= prec[n].r;
     }
@@ -870,7 +964,7 @@ static double choose_primes_mode(int mode, int cut)
     { n = list1[k].n;
       if(!used[n])
       { list2[ne2].n = n;
-        list2[ne2].v = logr[n] / (W * s1 * COST_TEST2
+        list2[ne2].v = logr[n] / (W * s1 * cost_test2
                                   + (tabcost[n] + initcost[n]) / rows);
         ne2++;
       }
@@ -886,10 +980,10 @@ static double choose_primes_mode(int mode, int cut)
     { double cost2, setup2 = setup1, rho2 = rho1, w = s1, rowbit;
       long n3lo, n3hi, ne3 = 0;
       /* the words the first stage leaves, tested until they die */
-      cost2 = tube ? 0.0 : W * w * COST_WORD;
+      cost2 = tube ? 0.0 : W * w * cost_word;
       for(k = 0; k < n2 - n1; k++)
       { n = list2[k].n;
-        cost2 += tube ? W * COST_TTEST : W * w * COST_TEST2;
+        cost2 += tube ? W * cost_ttest : W * w * cost_test2;
         setup2 += tabcost[n] + initcost[n];
         rho2 *= prec[n].r;
         w = 1.0 - pow(1.0 - rho2, (double)LONG_LENGTH);
@@ -901,8 +995,8 @@ static double choose_primes_mode(int mode, int cut)
         for(k = 0; k < n2 - n1; k++) { if(list2[k].n == n) { in2 = 1; } }
         if(!used[n] && !in2)
         { list3[ne3].n = n;
-          list3[ne3].v = logr[n] / (bits * rho2 * COST_TEST3
-                                          + rowbit * COST_ROW3
+          list3[ne3].v = logr[n] / (bits * rho2 * cost_test3
+                                          + rowbit * cost_row3
                                           + initcost[n] / rows);
           ne3++;
         }
@@ -913,12 +1007,12 @@ static double choose_primes_mode(int mode, int cut)
       { n3lo = n3hi = (sieve_primes3 < n3hi) ? sieve_primes3 : n3hi;
         if(n3lo < n2) { n3lo = n3hi = n2; }
       }
-      { double cost3 = bits * rho2 * COST_BIT, setup3 = setup2, rho = rho2;
+      { double cost3 = bits * rho2 * cost_bit, setup3 = setup2, rho = rho2;
         for(n3 = n2; n3 <= n3hi; n3++)
         { if(n3 >= n3lo)
           { double total = rows * (fixed + cost1 + cost2 + cost3
-                                   + rowbit * (double)(n3 - n2) * COST_ROW3
-                                   + bits * rho * COST_EXACT)
+                                   + rowbit * (double)(n3 - n2) * cost_row3
+                                   + bits * rho * cost_exact)
                            + setup3;
             if(best < 0.0 || total < best)
             { best = total; b1 = n1; b2 = n2; b3 = n3;
@@ -929,7 +1023,7 @@ static double choose_primes_mode(int mode, int cut)
           }
           if(n3 < n3hi)
           { n = list3[n3 - n2].n;
-            cost3 += bits * rho * COST_TEST3;
+            cost3 += bits * rho * cost_test3;
             setup3 += initcost[n];
             rho *= prec[n].r;
           }
@@ -2165,6 +2259,15 @@ void message(long n, long total)
                    sieve_primes2);
             printf("%ld primes used for all three stages together.\n",
                    sieve_primes3);
+            if(costs_set)
+            { size_t k;
+              printf("Constants of the cost model set by -c:");
+              for(k = 0; k < NUM_COSTS; k++)
+              { if(cost_names[k].set)
+                { printf(" %s=%g", cost_names[k].name, *cost_names[k].value); }
+              }
+              printf("\n");
+            }
             break;
     case 5: printf("\ny^2 = "); print_poly(coeffs, total); printf("\n"); break;
     case 6: printf("max. Height = %ld\n", total);
@@ -2232,13 +2335,21 @@ void error(long errno)
     case 7: printf("\nNot enough memory.\n\n"); break;
     case 8: printf("\nCould not start a thread.\n\n"); break;
     case 9: printf("\nThe polynomial must be squarefree.\n\n"); break;
+    case 10: { size_t k;
+               printf("\nThe argument of -c must be NAME=value, or several of them separated\n");
+               printf("by commas, with a positive value and one of the names\n");
+               for(k = 0; k < NUM_COSTS; k++)
+               { printf(" %s", cost_names[k].name); }
+               printf(".\n\n");
+               break;
+             }
     case 6: printf("\nWrong syntax for optional arguments:\n\n");
     case 2:
       printf("\n");
       printf("Usage: j-points 'a_0 a_1 ... a_d' max_height\n");
       printf("                [-n num_primes1] [-M num_primes2] [-N num_primes3]\n");
       printf("                [-p num_primes] [-s size] [-t threads] [-f format]\n");
-      printf("                [-w bound4] [-1] [-q] [-a]\n");
+      printf("                [-w bound4] [-c constants] [-1] [-q] [-a]\n");
       break;
   }
   fflush(stdout);

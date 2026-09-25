@@ -15,3 +15,8 @@
 /review-*/
 /experiments/
 /build-2.1/
+# the flags of the last build (see the Makefile)
+/build.stamp
+/build.stamp.tmp
+# machine-dependent tuning written by "make tune"
+/tuning.mk
