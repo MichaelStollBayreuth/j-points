@@ -23,8 +23,9 @@
  *  - the sieve: for fixed first two coordinates (a, b), the bit array *
  *    over the third coordinate c, sieved with the first-stage primes, *
  *    its surviving words tested against the second-stage primes, and  *
- *    the surviving bits handed to the exact check; the bookkeeping   *
- *    of a row done without integer divisions                          *
+ *    the surviving bits tested against the third-stage primes and    *
+ *    handed to the exact check; the bookkeeping of a row done       *
+ *    without integer divisions                                        *
  ***********************************************************************/
 
 #include <stdlib.h>
@@ -57,12 +58,34 @@ typedef struct
 static chunk_spec *chunks;
 static long num_chunks;
 
-static long np2;                  /* the number of second-stage primes */
-static long p2[NUM_PRIMES];       /* the second-stage primes */
+static long np2;    /* the number of second-stage primes */
+static long np23;   /* the number of second- and third-stage primes */
+static long p2[NUM_PRIMES];
+   /* the second-stage primes, followed by the third-stage primes */
 static unsigned short *res0;
-/* res0[k*np2 + m] = k mod p2[m] for 0 <= k < array_size: with the residue
+/* res0[k*np23 + m] = k mod p2[m] for 0 <= k < array_size: with the residue
    of the chunk's first word, the residue of any word of the chunk costs an
    addition and a comparison instead of a division */
+
+/* The third stage tests a bit (a, b, c) that survived the second stage
+   against its primes one by one: (a : b : c) mod p is a point of the
+   Kummer surface with a point of J above it iff, for a nonzero a, the
+   entry (b/a, c/a) of is_point_on_j is set, for a = 0 and b nonzero the
+   entry c/b of is_f_square (and the curve has a point at infinity mod p;
+   without one such rows are never sieved, see row_step), and always when
+   a = b = 0.  So a row (a, b) needs per prime a table row and a factor
+   (1/a or 1/b mod p), computed with divisions when a bit of the row first
+   gets here (most rows never do), by row3_setup. */
+static unsigned char all_ones[MAX_PRIME_EVEN];  /* the row for a = b = 0 */
+static unsigned char *tab3[NUM_PRIMES];  /* per third-stage prime: the row */
+static long mult3[NUM_PRIMES];           /* ... and the factor */
+static unsigned long recip3[NUM_PRIMES];
+/* recip3[m] = ceil(2^32 / p) for the m-th third-stage prime p: for
+   0 <= x < 2^16, (x * recip3[m]) >> 32 is exactly x / p, since x / p is
+   either an integer or at least 1/p away from one, and the error of the
+   product is below 2^-16.  So x mod p costs two multiplications. */
+#define MOD3(x, m) ((x) - p2[np2 + (m)] * (long)(((x) * recip3[m]) >> 32))
+static long row3_a = -1, row3_b = 0;     /* the row the data is for */
 
 /* the sieving primes, the lengths of their table rows and of the block
    of rows of one residue class of a, and the table rows of the current
@@ -86,18 +109,24 @@ void init_sift(void)
   long *res;
 
   np2 = sieve_primes2 - sieve_primes1;
-  for(n = 0; n < sieve_primes2; n++)
+  np23 = sieve_primes3 - sieve_primes1;
+  for(n = 0; n < sieve_primes3; n++)
   { pr[n] = prime[pnn[n]];
     rowlen[n] = pr[n] + 1;
     blocklen[n] = pr[n]*rowlen[n];
   }
   row2 = &rowptr[np1];
+  for(n = 0; n < MAX_PRIME_EVEN; n++) { all_ones[n] = 1; }
+  for(n = 0; n < np23 - np2; n++)
+  { unsigned long p = pr[sieve_primes2 + n];
+    recip3[n] = ((1UL << 32) + p - 1) / p;
+  }
   num_chunks = CEIL(w_high - w_low, array_size);
   survivors = (bit_array *)malloc(array_size*sizeof(bit_array));
   chunks = (chunk_spec *)malloc(num_chunks*sizeof(chunk_spec));
   walk = (walk_spec *)malloc((num_chunks*np1 + 1)*sizeof(walk_spec));
-  res = (long *)malloc((num_chunks*np2 + 1)*sizeof(long));
-  res0 = (unsigned short *)malloc((array_size*np2 + 1)*sizeof(unsigned short));
+  res = (long *)malloc((num_chunks*np23 + 1)*sizeof(long));
+  res0 = (unsigned short *)malloc((array_size*np23 + 1)*sizeof(unsigned short));
   if(survivors == NULL || chunks == NULL || walk == NULL || res == NULL
        || res0 == NULL)
   { error(7); }
@@ -109,7 +138,7 @@ void init_sift(void)
     if(ch->w_high > w_high) { ch->w_high = w_high; }
     range = ch->w_high - ch->w_low;
     ch->walk = &walk[k*np1];
-    ch->res = &res[k*np2];
+    ch->res = &res[k*np23];
     for(n = 0; n < np1; n++)
     { long p = prime[pnn[n]], start = ch->w_low % p;
       walk_spec *w = &ch->walk[n];
@@ -120,18 +149,70 @@ void init_sift(void)
       w->nper = (range - w->head)/p;
       w->tail = range - w->head - w->nper*p;
     }
-    for(n = 0; n < np2; n++)
+    for(n = 0; n < np23; n++)
     { long p = prime[pnn[np1 + n]], start = ch->w_low % p;
       if(start < 0) { start += p; }
       ch->res[n] = start;
     }
   }
-  for(n = 0; n < np2; n++)
+  for(n = 0; n < np23; n++)
   { long p = prime[pnn[np1 + n]];
     p2[n] = p;
-    for(k = 0; k < array_size; k++) { res0[k*np2 + n] = k % p; }
+    for(k = 0; k < array_size; k++) { res0[k*np23 + n] = k % p; }
   }
   return;
+}
+
+/* the data of the third stage for the row (a, b), see above; the part
+   that depends on a alone (its inverse mod p, or that p | a) is kept
+   from row to row while a stays */
+static long inva3[NUM_PRIMES];  /* 1/a mod p, or 0 when p | a */
+static void row3_setup(long a, long b)
+{
+  long m;
+  if(a != row3_a)
+  { for(m = 0; m < np23 - np2; m++)
+    { long n = sieve_primes2 + m, ap = a % pr[n];
+      inva3[m] = (ap == 0) ? 0 : inverses[pnn[n]][ap];
+    }
+  }
+  for(m = 0; m < np23 - np2; m++)
+  { long n = sieve_primes2 + m, pn = pnn[n], p = pr[n];
+    long bp = b % p;
+    if(bp < 0) { bp += p; }
+    if(inva3[m] != 0)
+    { mult3[m] = inva3[m];
+      tab3[m] = &is_point_on_j[pn][MOD3(bp * mult3[m], m)][0];
+    }
+    else if(bp != 0)
+    { mult3[m] = inverses[pn][bp];
+      tab3[m] = &is_f_square[pn][0];
+    }
+    else
+    { mult3[m] = 0;
+      tab3[m] = &all_ones[0];
+    }
+  }
+  row3_a = a; row3_b = b;
+  return;
+}
+
+/* the third stage for the bit (a, b, c): c = LONG_LENGTH * i + j with
+   the word index i, whose residues r0 + res are those of the second
+   stage's; returns 1 if the bit survives every prime */
+static inline int check_bit(long a, long b, long c, unsigned short *r0,
+                            long *res)
+{
+  long m, j = c & LONG_MASK;
+  if(a != row3_a || b != row3_b) { row3_setup(a, b); }
+  for(m = 0; m < np23 - np2; m++)
+  { long p = p2[np2 + m], r = r0[np2 + m] + res[np2 + m], x;
+    if(r >= p) { r -= p; }
+    x = MOD3(r * LONG_LENGTH + j, m);    /* c mod p */
+    x = MOD3(x * mult3[m], m);          /* c/a or c/b mod p */
+    if(!tab3[m][x]) { return(0); }
+  }
+  return(1);
 }
 
 
@@ -202,9 +283,9 @@ static inline int relprime3(long a, long b, long c)
 static inline int check_point(bit_array nums, long a, long b, long i,
                               long k, long *res)
 {
+  unsigned short *r0 = &res0[k*np23];
   num_surv1++;
-  { unsigned short *r0 = &res0[k*np2];
-    long m;
+  { long m;
     for(m = 0; m < np2 && nums; m++)
     { long r = r0[m] + res[m];
       if(r >= p2[m]) { r -= p2[m]; }
@@ -219,8 +300,10 @@ static inline int check_point(bit_array nums, long a, long b, long i,
     {/* test one bit */
       if(nums & 1)
       { num_surv2++;
-        if(relprime3(a, b, c) && check_one_point(a, b, c) && one_point)
-        { return(1); }
+        if(relprime3(a, b, c) && check_bit(a, b, c, r0, res))
+        { num_surv3++;
+          if(check_one_point(a, b, c) && one_point) { return(1); }
+        }
       }
     }
   }

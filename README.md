@@ -33,8 +33,8 @@ Please acknowledge use of the program in published work.
 
 ## Usage
 
-    j-points 'a_0 a_1 ... a_d' h [-n num_primes1] [-N num_primes2] [-p num_primes]
-             [-r ratio1] [-R ratio2] [-s size] [-f format] [-1] [-q] [-a]
+    j-points 'a_0 a_1 ... a_d' h [-n num_primes1] [-M num_primes2] [-N num_primes3]
+             [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
 
 where
 
@@ -48,22 +48,18 @@ where
 The optional arguments, which can be given in any order, are these.
 
 + `-n num_primes1`: the number of primes used for the first sieving stage.
-  By default it is chosen automatically, using `ratio1` below.
-+ `-N num_primes2`: the number of primes used for the two sieving stages
-  together. By default it is chosen automatically, using `ratio2` below.
-  With `-N 0` there is no sieving at all: every coprime triple is checked
-  exactly, which is slow but independent of the sieve.
+  By default it is chosen automatically, like the primes themselves (see
+  below).
++ `-M num_primes2`: the number of primes used for the first two sieving
+  stages together. By default it is chosen automatically.
++ `-N num_primes3`: the number of primes used for all three sieving stages
+  together. By default it is chosen automatically. With `-N 0` there is no
+  sieving at all: every coprime triple is checked exactly, which is slow but
+  independent of the sieve.
 + `-p num_primes`: the number of primes, from the beginning of the table
-  3, 5, 7, ..., 127, among which the sieving primes are chosen (default 20,
-  at most 30).
-+ `-r ratio1`: the ratio of the running time of the second versus the first
-  stage of sieving (per bit). It is used to choose the number of sieving primes
-  for the first stage automatically (default 5000) and is ignored when `-n` is
-  given.
-+ `-R ratio2`: the ratio of the running time needed for checking whether a
-  surviving triple gives rise to points versus one step of the second sieving
-  stage. It is used to choose the number of sieving primes for the second stage
-  automatically (default 2.5) and is ignored when `-N` is given.
+  3, 5, 7, ..., 251, among which the sieving primes are chosen (default and
+  maximum 53). Sieve tables, for the first two stages, are made only for the
+  primes up to 127; the larger ones can serve the third stage.
 + `-s size`: the size in kilobytes of the bit array in which the sieving is
   done (default 10). This determines the amount of memory the program uses.
   A smaller value can give better performance if the array then fits into the
@@ -96,7 +92,7 @@ are found such that
 The coordinates are scaled by the denominator of d, so that they are coprime
 integers.
 
-This test is split into two stages. First it is checked whether (a, b, c)
+This test is preceded by a sieve. First it is checked whether (a, b, c)
 mod p are the first three coordinates of a point in K(F_p) that lifts to
 J(F_p). This is done for a number of primes p. Only the surviving triples are
 then used to compute the possible d's and to check whether the points thus
@@ -106,13 +102,29 @@ There are a number of improvements to this basic scheme.
 
 1. We use bits to represent the individual numerators. In this way we can
    sieve as many numerators as bits fit into a long word (usually 64) at the
-   same time, using bit-wise "and" operations.
+   same time, using bit-wise "and" operations: for fixed a and b, a word of
+   the bit array over c is ANDed with a word of a table that holds the
+   admissible c modulo p (the first stage).
 2. When this kind of sieving has reduced the candidates considerably, we
-   continue the sieving with more primes for each candidate separately.
+   continue the sieving with more primes for each surviving word separately
+   (the second stage), and then with more primes for each surviving bit
+   separately, by a table of the points of K(F_p) that lift to J(F_p) (the
+   third stage, which can use primes too large for the tables of the first
+   two stages).
 3. We take more primes than necessary for the sieving procedure and determine
    in a first step which are the best ones. This is measured by the ratio of
    numbers surviving the corresponding step of the sieve (essentially the
-   number of points mod p, divided by p^2).
+   number of points mod p, divided by p^2), estimated from a sample of the
+   residue classes for the larger primes. The primes of each stage and their
+   numbers are then chosen by a cost model of the run: the passes of the
+   first stage (a table of a large prime costs more, being large), the tests
+   of the surviving words and bits, the exact checks, and the time to set up
+   the tables, which matters at small height bounds. `-n`, `-M` and `-N`
+   pin the numbers.
+4. Rows (a, b) that the sieve would empty outright are skipped: when the
+   leading coefficient of f is not a square modulo a sieving prime p, the
+   curve has no point at infinity over F_p, and no point of J reduces to a
+   Kummer point with a divisible by p unless b is too.
 
 ## Examples
 
@@ -198,6 +210,16 @@ sieve together.
     modulo p; for an a divisible by such primes only the b divisible by
     them are searched. Nothing on curves with a square leading
     coefficient, 1.2x on the record curve (a quarter of its rows).
+  + The table of primes extended to the 53 primes below 256 (it had the 30
+    below 128), a third sieving stage per surviving bit for the primes
+    without a sieve table, and the primes of each stage and their numbers
+    chosen by a cost model of the run instead of the two ratios, whose
+    options `-r` and `-R` are gone; `-M` pins the number of primes of the
+    first two stages, `-N` now counts all three. The rates of the larger
+    primes are estimated from a sample of the residue classes, and the
+    tables are made for the primes chosen only, so that the set-up is
+    cheaper than before at small height bounds. 1.6-1.8x on the record
+    curve (which had been starved of primes), 1.0-1.03x on random curves.
 
 Michael Stoll, October 1998 - September 2026.
 

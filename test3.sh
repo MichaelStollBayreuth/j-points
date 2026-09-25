@@ -22,15 +22,17 @@
 #        and -N 0 alone, which lost the sieved points before 2.1), a
 #        first-stage count above the total, more primes than -p allows, -p
 #        after -n
-# 25-26  -r, -R: the ratios that choose the numbers of primes
+# 25-26  -M: the number of primes of the first two stages pinned, with and
+#        without a third stage
 # 27     -s 1: a bit array of 1 KB, three chunks at this height bound
 # 28-29  a zero leading coefficient is dropped (before 2.1 it printed the
 #        origin); a zero polynomial is an error
 # 30-38  the errors: no argument, too few or too many coefficients, a height
 #        bound of 0 or above the maximum, an unknown option, an option
-#        without its value, a ratio and a size that are not positive
-# 39     the report of a run that is not -q, with the primes pinned and the
-#        line naming the version dropped
+#        without its value, a number of primes and a size that are not
+#        positive
+# 39     the report of a run that is not -q, with the primes of the three
+#        stages pinned and the line naming the version dropped
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
 # whose target fails with 1 when they differ)
@@ -67,8 +69,8 @@ t '21 116 171 128 55 12 1' 300 -q -n 8 -N 5
 t '21 116 171 128 55 12 1' 300 -q -n 3 -N 30 -p 30
 t '21 116 171 128 55 12 1' 100 -q -p 3
 t '21 116 171 128 55 12 1' 300 -q -n 25 -p 10
-t '21 116 171 128 55 12 1' 300 -q -r 100 -R 1.5
-t '21 116 171 128 55 12 1' 300 -q -r 1e9 -R 1e9
+t '21 116 171 128 55 12 1' 300 -q -M 6
+t '21 116 171 128 55 12 1' 300 -q -n 2 -M 4 -N 4
 t '1 178 817 -274 16 1' 4500 -q -s 1
 t '1 6 5 22 22 8 0' 100 -q
 e '0 0 0 0 0 0 0' 100
@@ -79,6 +81,6 @@ e '1 2 3 4 5 6 7' 0
 e '1 2 3 4 5 6 7' 3037000500
 e '1 2 3 4 5 6 7' 100 -x
 e '1 2 3 4 5 6 7' 100 -n
-e '1 2 3 4 5 6 7' 100 -r 0
+e '1 2 3 4 5 6 7' 100 -p 0
 e '1 2 3 4 5 6 7' 100 -s 0
-f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -n 3 -N 6
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -n 3 -M 6 -N 9

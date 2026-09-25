@@ -303,7 +303,7 @@
 (5, -58, 15, -176)
 (7, -4, -41, 268)
 (8, -19, -30, 190)
-# <21 116 171 128 55 12 1> <300> <-q> <-r> <100> <-R> <1.5>
+# <21 116 171 128 55 12 1> <300> <-q> <-M> <6>
 (0, 0, 1, -19)
 (0, 1, -2, 26)
 (0, 1, -2, 38)
@@ -322,7 +322,7 @@
 (5, -58, 15, -176)
 (7, -4, -41, 268)
 (8, -19, -30, 190)
-# <21 116 171 128 55 12 1> <300> <-q> <-r> <1e9> <-R> <1e9>
+# <21 116 171 128 55 12 1> <300> <-q> <-n> <2> <-M> <4> <-N> <4>
 (0, 0, 1, -19)
 (0, 1, -2, 26)
 (0, 1, -2, 38)
@@ -537,9 +537,8 @@ The polynomial must have degree at least 5.
 #
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
-                [-n num_primes1] [-N num_primes2] [-p num_primes]
-                [-r ratio1] [-R ratio2] [-s size] [-f format]
-                [-1] [-q] [-a]
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
 # <1 2 3 4 5> <100>
 
 The polynomial must have degree at least 5.
@@ -564,37 +563,33 @@ Wrong syntax for optional arguments:
 
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
-                [-n num_primes1] [-N num_primes2] [-p num_primes]
-                [-r ratio1] [-R ratio2] [-s size] [-f format]
-                [-1] [-q] [-a]
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-n>
 
 Wrong syntax for optional arguments:
 
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
-                [-n num_primes1] [-N num_primes2] [-p num_primes]
-                [-r ratio1] [-R ratio2] [-s size] [-f format]
-                [-1] [-q] [-a]
-# <1 2 3 4 5 6 7> <100> <-r> <0>
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+# <1 2 3 4 5 6 7> <100> <-p> <0>
 
 Wrong syntax for optional arguments:
 
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
-                [-n num_primes1] [-N num_primes2] [-p num_primes]
-                [-r ratio1] [-R ratio2] [-s size] [-f format]
-                [-1] [-q] [-a]
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
 # <1 2 3 4 5 6 7> <100> <-s> <0>
 
 Wrong syntax for optional arguments:
 
 
 Usage: j-points 'a_0 a_1 ... a_d' max_height
-                [-n num_primes1] [-N num_primes2] [-p num_primes]
-                [-r ratio1] [-R ratio2] [-s size] [-f format]
-                [-1] [-q] [-a]
-# <21 116 171 128 55 12 1> <100> <-n> <3> <-N> <6> | grep -v '^This is j-points'
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+# <21 116 171 128 55 12 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
 
 
 Please acknowledge use of the program in published work.
@@ -603,12 +598,14 @@ Please acknowledge use of the program in published work.
 y^2 = x^6 + 12 x^5 + 55 x^4 + 128 x^3 + 171 x^2 + 116 x + 21
 
 max. Height = 100
-3 primes used for first stage of sieving,
-6 primes used for both stages of sieving together.
+3 primes used for the first stage of sieving,
+6 primes used for the first two stages together,
+9 primes used for all three stages together.
 Sieving primes:
- First stage: 59, 61, 71
- Second stage: 41, 53, 29
-Probabilities: Min(59) = 0.368543, Cut1(71) = 0.385685, Cut2(29) = 0.427119, Max(3) = 0.925926
+ First stage: 7, 13, 11
+ Second stage: 23, 17, 19
+ Third stage: 59, 61, 41
+Probabilities: Min(181) = 0.349499, Cut1(11) = 0.571751, Cut2(19) = 0.514506, Cut3(41) = 0.392348, Max(3) = 0.925926
 
 (0, 0, 1, -19)
 (1, -4, 4, -91)
@@ -619,7 +616,8 @@ Probabilities: Min(59) = 0.368543, Cut1(71) = 0.385685, Cut2(29) = 0.427119, Max
 (1, -4, 1, -44)
 (1, -2, -5, 64)
 
-70096 candidates survived the first stage,
-13321 candidates survived the second stage.
+78128 candidates survived the first stage,
+56788 candidates survived the second stage,
+2953 candidates survived the third stage.
 
 Found 8 rational points on K lifting to J.

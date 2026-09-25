@@ -53,34 +53,54 @@ long prime[NUM_PRIMES+1] =
 {3,5,7,11,13};
 #else
 long prime[NUM_PRIMES+1] =
-// {3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61};
-{3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127};
+{3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,
+ 103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,
+ 199,211,223,227,229,233,239,241,251};
 #endif
 long pnn[NUM_PRIMES+1];  /* This array holds the numbers (= index in prime[])
-                            of the sieving primes */
+                            of the sieving primes, stage by stage */
 
-double ratio1_def = 5000;
-double ratio2_def = 2.5;
+long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
+                                 of the table; -p sets it */
 
-double ratio1 = 0.0;  /* This will be set if the -r option is given */
-double ratio2 = 0.0;  /* This will be set if the -R option is given */
-
-long num_primes = 20; /* This will be changed if the -p option is given */
+/* The cost model that chooses the sieving primes and their stages (see
+   choose_primes): the costs in cycles of one core, measured on the curve
+   of test1 at 2000 with the sieve of 3.0.  Only their ratios matter for
+   the choice, and those are much the same on any current machine. */
+#define COST_AND      0.9  /* one word of one first-stage pass ... */
+#define COST_SIZE   270.0  /* ... times 1 + p/COST_SIZE: the tables of the
+                              larger primes spill out of the cache (12%
+                              more per word for a set of primes with mean
+                              84 than for one with mean 51) */
+#define COST_WORD    56.0  /* a word surviving the first stage: found and
+                              handed to the second stage */
+#define COST_TEST2    8.0  /* one second-stage test of a word */
+#define COST_BIT     30.0  /* a bit surviving the second stage: found,
+                              its coprimality tested */
+#define COST_ROW3    40.0  /* per third-stage prime, the data of a row
+                              that has such a bit (see row3_setup) */
+#define COST_TEST3   15.0  /* one third-stage test of a bit */
+#define COST_EXACT 1300.0  /* the exact check of a triple */
+#define COST_TABLE   13.0  /* one word of a sieve table at set-up */
+#define COST_INIT   110.0  /* one class (1, b, c) of the exact table of a
+                              prime whose rate was sampled, at set-up */
+#define SAMPLE_PAIRS 4096  /* the classes (1, b, c) sampled for the rate
+                              of a prime, see init_fmodpsquare */
 
 bit_array bits[LONG_LENGTH]; /* An array of bit masks */
 
-typedef struct {long p; double r; long n;} entry;
+typedef struct {long p; double r; long n; long np0;} entry;
 
 long inverses[NUM_PRIMES][MAX_PRIME_EVEN];
 /* inverses[pn][a] = b such that a*b = 1 mod p = prime[pn]; 0 < a, b < p. */
 int squares[NUM_PRIMES][MAX_PRIME];
 /* squares[pn][x] = 1 if x is a square mod prime[pn], 0 if not */
-int has_infinity[NUM_PRIMES];
+unsigned char has_infinity[NUM_PRIMES];
 /* has_infinity[pn] = 1 if the curve has rational points at infinity,
    0 if not */
-int is_f_square[NUM_PRIMES][MAX_PRIME_EVEN];
+unsigned char is_f_square[NUM_PRIMES][MAX_PRIME_EVEN];
 /* is_f_square[pn][x] = 1 if f(x) is a square mod prime[pn], 0 if not */
-int is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
+unsigned char is_point_on_j[NUM_PRIMES][MAX_PRIME_EVEN][MAX_PRIME_EVEN];
 /* is_point_on_j[pn][x][y] = 1 if there are points on J mod prime[pn]
    with first three coordinates on the Kummer surface (1,x,y), 0 if not */
 
@@ -110,7 +130,8 @@ entry prec[NUM_PRIMES];  /* This array is used for sorting in order to
 
 long height;          /* The height bound */
 long sieve_primes1;   /* The number of primes used for the first sieving stage */
-long sieve_primes2;   /* The number of primes used for both sieving stages */
+long sieve_primes2;   /* The number of primes used for the first two stages */
+long sieve_primes3;   /* The number of primes used for all three stages */
 int quiet;            /* A flag saying whether to suppress messages */
 int one_point;        /* A flag saying if one point is enough */
 int all_points;       /* Indicates that the `-a' option was given */
@@ -121,6 +142,7 @@ bit_array *survivors; /* In this array the sieving takes place */
 
 long num_surv1 = 0;   /* Used to count the survivors of the first stage */
 long num_surv2 = 0;   /* Used to count the survivors of the second stage */
+long num_surv3 = 0;   /* Used to count the survivors of the third stage */
 
 long total = 0;       /* Counts the points found */
 
@@ -140,6 +162,7 @@ char *scan_mpz(char*, MP_INT*);
 void init_inverses(void);
 void init_squares(void);
 void init_fmodpsquare(void);
+void choose_primes(void);
 void init_sieve(void);
 void kummer_init(void);
 static inline int relprime(long, long);
@@ -207,6 +230,7 @@ void read_input(long argc, char *argv[])
   /* Set global variables to their default values */
   sieve_primes1 = -1;  /* automatic determination of this number */
   sieve_primes2 = -1;  /* automatic determination of this number */
+  sieve_primes3 = -1;  /* automatic determination of this number */
   quiet = 0;           /* don't be quiet */
   one_point = 0;       /* look for all points */
   all_points = 0;      /* take naive Kummer height */
@@ -223,31 +247,20 @@ void read_input(long argc, char *argv[])
           i++;
           if(sscanf(argv[i], " %ld", &sieve_primes1) != 1) error(6);
           if(sieve_primes1 < 0) sieve_primes1 = 0;
-          if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
-            sieve_primes1 = sieve_primes2;
+          i++;
+          break;
+        case 'M': /* number of primes used for the first two stages */
+          if(argc == i) error(6);
+          i++;
+          if(sscanf(argv[i], " %ld", &sieve_primes2) != 1) error(6);
+          if(sieve_primes2 < 0) sieve_primes2 = 0;
           i++;
           break;
         case 'N': /* number of primes used for sieving altogether */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes2) != 1) error(6);
-          if(sieve_primes2 < 0) sieve_primes2 = 0;
-          if(sieve_primes1 >= 0 && sieve_primes1 > sieve_primes2)
-            sieve_primes2 = sieve_primes1;
-          i++;
-          break;
-        case 'r': /* speed ratio 1 */
-          if(argc == i) error(6);
-          i++;
-          if(sscanf(argv[i], " %lf", &ratio1) != 1) error(6);
-          if(ratio1 <= 0.0) error(6);
-          i++;
-          break;
-        case 'R': /* speed ratio 2 */
-          if(argc == i) error(6);
-          i++;
-          if(sscanf(argv[i], " %lf", &ratio2) != 1) error(6);
-          if(ratio2 <= 0.0) error(6);
+          if(sscanf(argv[i], " %ld", &sieve_primes3) != 1) error(6);
+          if(sieve_primes3 < 0) sieve_primes3 = 0;
           i++;
           break;
         case 's': /* size of survivors array in kbytes */
@@ -289,9 +302,17 @@ void read_input(long argc, char *argv[])
         default: error(6);
   } } }
   /* the numbers of sieving primes cannot exceed the number of primes
-     considered, whatever the order of -n, -N and -p */
-  if(sieve_primes1 > num_primes) sieve_primes1 = num_primes;
+     considered, and a stage cannot have more primes than the stages
+     after it, whatever the order of -n, -M, -N and -p */
+  if(sieve_primes3 > num_primes) sieve_primes3 = num_primes;
   if(sieve_primes2 > num_primes) sieve_primes2 = num_primes;
+  if(sieve_primes3 >= 0 && sieve_primes2 > sieve_primes3)
+    sieve_primes2 = sieve_primes3;
+  if(sieve_primes1 > num_primes) sieve_primes1 = num_primes;
+  if(sieve_primes3 >= 0 && sieve_primes1 > sieve_primes3)
+    sieve_primes1 = sieve_primes3;
+  if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
+    sieve_primes1 = sieve_primes2;
 }
 
 /* Read in a long long long integer. Should really be in the library. */
@@ -388,23 +409,85 @@ int compare_entries(const void *a, const void *b)
   return (diff > 0) ? 1 : (diff < 0) ? -1 : 0;
 }
 
-void init_fmodpsquare(void)
-/* initialise is_f_square[][] and is_point_on_j[][][] */
+/* The rate of a prime p: the fraction of the residue triples (a, b, c)
+   mod p that the sieve admits, from the number of admitted classes
+   (1, b, c) and the a = 0 part, as init_fmodpsquare counts them. */
+static double rate_of(long p, long np0, double np1)
+{ return(((double)(p-1) * ((double)np0 + np1) + 1.0)
+           / ((double)p * (double)p * (double)p)); }
+
+/* Is (1, b, c) mod p = prime[pn] the image of a point of J(F_p)?  The
+   remainder s1*x + s2 of f modulo x^2 - b*x + c gives f(x1)*f(x2) = s2^2
+   + b*s1*s2 + c*s1^2 for the roots x1, x2, which must be a square t^2,
+   and then one of (y1 +- y2)^2 = 2*s2 + b*s1 +- 2*t must be a square.
+   The reductions mod p by the reciprocal, see MODP in the table; every
+   operand stays below 2^24.  (The diagonal c = b^2/4 is always admitted.) */
+#define MODP(x) ((x) - p * (long)(((x) * recip) >> 32))
+static inline int point_on_j(long pn, long p, unsigned long recip,
+                             long b, long c)
 {
-  long a, b, c, pn, p, n, s, np, s1, s2, t;
+  long s1 = coeffs_mod_p[pn][degree], s2 = coeffs_mod_p[pn][degree-1], t, n;
+  for(n = degree-2; n >= 0; n--)
+  { t = s1;
+    s1 = MODP(s1*b + s2);
+    s2 = MODP(coeffs_mod_p[pn][n] + (p-c)*t);
+  }
+  t = MODP(s2*s2 + MODP(b*s1)*s2 + MODP(c*s1)*s1);
+  t = squares[pn][t];
+  if(t == p) { return(0); }
+  { long u1 = MODP(2*s2 + b*s1 + 2*t), u2 = MODP(u1 + 4*(p - t));
+    return(squares[pn][u1] != p || squares[pn][u2] != p);
+  }
+}
+
+/* Fill is_point_on_j[pn] for the prime p = prime[pn], and return the
+   number of admitted classes (1, b, c). */
+static long init_table(long pn)
+{
+  long p = prime[pn], b, c, count = 0;
+  unsigned long recip = ((1UL << 32) + p - 1) / p;
+  for(b = 0; b < p; b++)
+  { long bb = ( ((1 + p*(3-(p&2)))/4) * b*b ) % p;   /* b^2/4 mod p */
+    for(c = 0; c < p; c++)
+    { if(c == bb || point_on_j(pn, p, recip, b, c))
+      { is_point_on_j[pn][b][c] = 1; count++; }
+      else
+      { is_point_on_j[pn][b][c] = 0; }
+    }
+  }
+  return(count);
+}
+
+/* The rates of the primes come from a sample of SAMPLE_PAIRS classes
+   (1, b, c) -- all of them for the primes up to 61 -- and the tables are
+   filled by init_table for the primes chosen; so the 53 primes of the
+   table cost little at set-up.  The sample: every stride-th pair in the
+   order b*p + c, the stride below p, so that c runs through all residues
+   evenly. */
+
+void init_fmodpsquare(void)
+/* initialise is_f_square[][], the rates of the primes, and the tables
+   is_point_on_j[][][] of the primes chosen */
+{
+  long a, pn, p, n, s, np0;
+  int sampled[NUM_PRIMES], tabled[NUM_PRIMES];
 
   for(pn = 0; pn < num_primes; pn++)
   {
+    unsigned long recip;
+    long i, pp, stride, total, count;
     p = prime[pn];
-    np = 1;
+    pp = p*p;
+    recip = ((1UL << 32) + p - 1) / p;
     /* compute coefficients mod p */
     for(n = 0; n <= 6; n++)
       coeffs_mod_p[pn][n] = mpz_fdiv_r_ui(&tmp, &coeffs[n], p);
     /* deal with (0,0,1) */
     has_infinity[pn] = (squares[pn][coeffs_mod_p[pn][6]] == p) ? 0 : 1;
+    np0 = 1;
     /* deal with (0,1,a) */
     if((is_f_square[pn][0] = (squares[pn][coeffs_mod_p[pn][0]] == p) ? 0 : 1))
-    { np++; }
+    { np0++; }
     for(a = 1 ; a < p; a++)
     {
       s = coeffs_mod_p[pn][degree];
@@ -413,78 +496,203 @@ void init_fmodpsquare(void)
         s += coeffs_mod_p[pn][n];
         s %= p;
       }
-      if((is_f_square[pn][a] = (squares[pn][s] == p) ? 0 : 1)) np++;
+      if((is_f_square[pn][a] = (squares[pn][s] == p) ? 0 : 1)) np0++;
     }
-    /* deal with (1,b,c) */
-    for(b = 0; b < p; b++)
-    { long bb = ( ((1 + p*(3-(p&2)))/4) * b*b ) % p;
-      for(c = 0; c < p; c++)
-      { if(c == bb)
-        { is_point_on_j[pn][b][c] = 1;
-          np++;
-          continue;
-        }
-        s1 = coeffs_mod_p[pn][degree];
-        s2 = coeffs_mod_p[pn][degree-1];
-        for(n = degree-2; n >= 0; n--)
-        { t = s1;
-          s1 *= b;
-          s1 += s2;
-          s1 %= p;
-          s2 = (coeffs_mod_p[pn][n] + (p-c)*t)%p;
-        }
-        t = (s2*s2 + b*s1*s2 + c*s1*s1)%p;
-        t = squares[pn][t];
-        if(t == p)
-        { is_point_on_j[pn][b][c] = 0; }
-        else
-        { long u1 = (2*s2 + b*s1 + 2*t)%p,
-               u2 = (u1 + 4*(p - t))%p;
-          if(squares[pn][u1] == p && squares[pn][u2] == p)
-          { is_point_on_j[pn][b][c] = 0; }
-          else
-          { is_point_on_j[pn][b][c] = 1;
-            np++;
-    } } } }
-    np *= p-1;
-    np++; /* count origin */
+    /* deal with (1,b,c): the whole table, or a sample */
+    stride = (pp + SAMPLE_PAIRS - 1) / SAMPLE_PAIRS;
+    sampled[pn] = (stride > 1);
+    tabled[pn] = 0;
+    if(stride == 1)
+    { count = init_table(pn); total = pp; tabled[pn] = 1; }
+    else
+    { count = 0; total = 0;
+      for(i = 0; i < pp; i += stride)
+      { long b = i / p, c = i - b*p;
+        long bb = ( ((1 + p*(3-(p&2)))/4) * b*b ) % p;
+        total++;
+        if(c == bb || point_on_j(pn, p, recip, b, c)) { count++; }
+      }
+    }
     /* Fill array with info for p */
     prec[pn].p = p;
     prec[pn].n = pn;
-    prec[pn].r = (double)np/(double)(p*p*p);
+    prec[pn].r = rate_of(p, np0, (double)count * (double)pp / (double)total);
+    prec[pn].np0 = np0;
+  }
+  /* a sampled rate of 0 is no proof that no class is admitted: those
+     primes get the exact count (a rate of 0 means that there are no
+     points at all, see find_points) */
+  for(pn = 0; pn < num_primes; pn++)
+  { if(sampled[pn] && prec[pn].r == 0.0)
+    { prec[pn].r = rate_of(prime[pn], prec[pn].np0, (double)init_table(pn));
+      tabled[pn] = 1;
+    }
   }
   /* sort the array to get at the best primes */
   qsort(prec, num_primes, sizeof(entry), compare_entries);
-  /* Determine the number of sieving primes:
-     First stage: take smallest n such that prod(j<=n) prob(j) * ratio1 < 1.
-     Second stage: take smallest N such that (1-prob(N+1)) * ratio2 < 1. */
-  if(sieve_primes1 < 0)
-  { long n = 0, m = (sieve_primes2 >= 0) ? sieve_primes2-1 : num_primes-1;
-    double prod;
-    if(ratio1 == 0.0) ratio1 = ratio1_def;
-    prod = ratio1;
-    for(n = 0; n < m; n++)
-    { prod *= prec[n].r;
-      if(prod < 1.0) break;
-    }
-    sieve_primes1 = n + 1;
-    /* -N 0 means no sieving at all */
-    if(sieve_primes2 >= 0 && sieve_primes1 > sieve_primes2)
-      sieve_primes1 = sieve_primes2;
-  }
-  if(sieve_primes2 < 0)
-  { long n;
-    if(ratio2 == 0.0) ratio2 = ratio2_def;
-    for(n = sieve_primes1; n < num_primes; n++)
-      if(ratio2*(1.0 - prec[n].r) < 1.0) break;
-    sieve_primes2 = n;
-  }
-  for(n = 0; n < sieve_primes2; n++) { pnn[n] = prec[n].n; }
+  choose_primes();
+  /* the tables of the primes chosen */
+  for(n = 0; n < sieve_primes3; n++)
+  { if(!tabled[pnn[n]]) { init_table(pnn[n]); tabled[pnn[n]] = 1; } }
   if(!quiet)
   { message(4, 0);
-    if(sieve_primes2 > 0)
+    if(sieve_primes3 > 0)
     { message(7, 0); message(8, 0); }
   }
+  return;
+}
+
+/* The candidates of a stage, ranked by their value for it: the
+   reduction of the survivors, -log r, per cycle the prime costs in that
+   stage per row at this height (see choose_primes). */
+typedef struct { long n; double v; } cand;   /* n: the index in prec */
+static int compare_cands(const void *a, const void *b)
+{ double diff = ((cand *)b)->v - ((cand *)a)->v;
+  return (diff > 0) ? 1 : (diff < 0) ? -1 : 0;
+}
+
+/* Choose the primes of the three stages and their numbers, unless -n,
+   -M, -N pinned the numbers, and fill pnn[] stage by stage.  The model
+   (the COST_ constants) prices a run: per row of W words, n1 passes of W
+   word-ANDs, each with the size penalty; the words surviving the first
+   stage found and tested one prime at a time until they die; the bits
+   surviving the second stage found and tested one prime at a time, and
+   the data of the third stage for the rows that have such a bit; the
+   exact check of the bits surviving all stages; and at set-up the sieve
+   tables (stages 1 and 2, p <= MAX_TABLE_PRIME) and the exact tables
+   is_point_on_j of the primes whose rate was sampled.  The rates are
+   taken as the densities of the admitted c in a row, the primes as
+   independent.  For each number n1 the first stage takes the n1 best
+   table primes by their value for the first stage (-log r per cycle of
+   a pass plus the amortised table); the second stage the best n2 - n1
+   of the table primes left, by their value for the second stage (per
+   cycle of the tests on the words the first stage leaves); the third
+   stage the best n3 - n2 of all primes left, by their value for it.
+   The numbers minimise the modelled cost. */
+void choose_primes(void)
+{
+  long ne = 0, n, n1, n2, n3, k;
+  cand list1[NUM_PRIMES], list2[NUM_PRIMES], list3[NUM_PRIMES];
+  long best1[NUM_PRIMES], best2[NUM_PRIMES], best3[NUM_PRIMES];
+  double W = (double)(2*(height>>LONG_SHIFT) + 2);  /* words per row */
+  double rows = (double)(height + 1) * (double)(2*height + 1);
+  double bits = (double)LONG_LENGTH * W;            /* bits per row */
+  double best = -1.0;
+  long b1 = 0, b2 = 0, b3 = 0;
+  long n1lo, n1hi;
+  double logr[NUM_PRIMES], tabcost[NUM_PRIMES], initcost[NUM_PRIMES];
+  int used[NUM_PRIMES];
+
+  for(n = 0; n < num_primes; n++)
+  { double p = (double)prec[n].p;
+    logr[n] = (prec[n].r > 0.0) ? -log(prec[n].r) : 1.0e9;
+    tabcost[n] = COST_TABLE * p*p*(p + 1.0);
+    initcost[n] = (p*p > (double)SAMPLE_PAIRS) ? COST_INIT * p*p : 0.0;
+  }
+  /* the first stage's ranking of the table primes */
+  for(n = 0; n < num_primes; n++)
+  { if(prec[n].p <= MAX_TABLE_PRIME)
+    { list1[ne].n = n;
+      list1[ne].v = logr[n] / (W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE)
+                               + (tabcost[n] + initcost[n]) / rows);
+      ne++;
+    }
+  }
+  qsort(list1, ne, sizeof(cand), compare_cands);
+  /* the range of n1: pinned, or 0..ne, never above pinned n2 or n3 */
+  n1lo = 0; n1hi = ne;
+  if(sieve_primes2 >= 0 && n1hi > sieve_primes2) { n1hi = sieve_primes2; }
+  if(sieve_primes3 >= 0 && n1hi > sieve_primes3) { n1hi = sieve_primes3; }
+  if(sieve_primes1 >= 0)
+  { n1lo = n1hi = (sieve_primes1 < n1hi) ? sieve_primes1 : n1hi; }
+  for(n1 = n1lo; n1 <= n1hi; n1++)
+  { double cost1 = 0.0, setup1 = 0.0, rho1 = 1.0, s1;
+    long n2lo, n2hi, ne2 = 0;
+    for(n = 0; n < num_primes; n++) { used[n] = 0; }
+    for(k = 0; k < n1; k++)
+    { n = list1[k].n;
+      used[n] = 1;
+      cost1 += W * COST_AND * (1.0 + (double)prec[n].p / COST_SIZE);
+      setup1 += tabcost[n] + initcost[n];
+      rho1 *= prec[n].r;
+    }
+    s1 = 1.0 - pow(1.0 - rho1, (double)LONG_LENGTH);  /* words surviving */
+    /* the second stage's ranking of the table primes left */
+    for(k = 0; k < ne; k++)
+    { n = list1[k].n;
+      if(!used[n])
+      { list2[ne2].n = n;
+        list2[ne2].v = logr[n] / (W * s1 * COST_TEST2
+                                  + (tabcost[n] + initcost[n]) / rows);
+        ne2++;
+      }
+    }
+    qsort(list2, ne2, sizeof(cand), compare_cands);
+    n2lo = n1; n2hi = n1 + ne2;
+    if(sieve_primes3 >= 0 && n2hi > sieve_primes3) { n2hi = sieve_primes3; }
+    if(sieve_primes2 >= 0)
+    { n2lo = n2hi = (sieve_primes2 < n2hi) ? sieve_primes2 : n2hi;
+      if(n2lo < n1) { n2lo = n2hi = n1; }
+    }
+    for(n2 = n2lo; n2 <= n2hi; n2++)
+    { double cost2, setup2 = setup1, rho2 = rho1, w = s1, rowbit;
+      long n3lo, n3hi, ne3 = 0;
+      /* the words the first stage leaves, tested until they die */
+      cost2 = W * w * COST_WORD;
+      for(k = 0; k < n2 - n1; k++)
+      { n = list2[k].n;
+        cost2 += W * w * COST_TEST2;
+        setup2 += tabcost[n] + initcost[n];
+        rho2 *= prec[n].r;
+        w = 1.0 - pow(1.0 - rho2, (double)LONG_LENGTH);
+      }
+      rowbit = 1.0 - pow(1.0 - rho2, bits);  /* rows with a bit left */
+      /* the third stage's ranking of all the primes left */
+      for(n = 0; n < num_primes; n++)
+      { int in2 = 0;
+        for(k = 0; k < n2 - n1; k++) { if(list2[k].n == n) { in2 = 1; } }
+        if(!used[n] && !in2)
+        { list3[ne3].n = n;
+          list3[ne3].v = logr[n] / (bits * rho2 * COST_TEST3
+                                          + rowbit * COST_ROW3
+                                          + initcost[n] / rows);
+          ne3++;
+        }
+      }
+      qsort(list3, ne3, sizeof(cand), compare_cands);
+      n3lo = n2; n3hi = n2 + ne3;
+      if(sieve_primes3 >= 0)
+      { n3lo = n3hi = (sieve_primes3 < n3hi) ? sieve_primes3 : n3hi;
+        if(n3lo < n2) { n3lo = n3hi = n2; }
+      }
+      { double cost3 = bits * rho2 * COST_BIT, setup3 = setup2, rho = rho2;
+        for(n3 = n2; n3 <= n3hi; n3++)
+        { if(n3 >= n3lo)
+          { double total = rows * (cost1 + cost2 + cost3
+                                   + rowbit * (double)(n3 - n2) * COST_ROW3
+                                   + bits * rho * COST_EXACT)
+                           + setup3;
+            if(best < 0.0 || total < best)
+            { best = total; b1 = n1; b2 = n2; b3 = n3;
+              for(k = 0; k < n1; k++) { best1[k] = list1[k].n; }
+              for(k = 0; k < n2 - n1; k++) { best2[k] = list2[k].n; }
+              for(k = 0; k < n3 - n2; k++) { best3[k] = list3[k].n; }
+            }
+          }
+          if(n3 < n3hi)
+          { n = list3[n3 - n2].n;
+            cost3 += bits * rho * COST_TEST3;
+            setup3 += initcost[n];
+            rho *= prec[n].r;
+          }
+        }
+      }
+    }
+  }
+  sieve_primes1 = b1; sieve_primes2 = b2; sieve_primes3 = b3;
+  for(k = 0; k < b1; k++) { pnn[k] = prec[best1[k]].n; }
+  for(k = 0; k < b2 - b1; k++) { pnn[b1 + k] = prec[best2[k]].n; }
+  for(k = 0; k < b3 - b2; k++) { pnn[b2 + k] = prec[best3[k]].n; }
   return;
 }
 
@@ -493,7 +701,7 @@ void init_fmodpsquare(void)
    coordinates of a point on K(F_p), where c = c0*LONG_LENGTH + j.
    c runs from 0 to k*p - 1, where k*p is the least multiple of p exceeding
    LONG_LENGTH. */
-bit_array help[MAX_PRIME][MAX_PRIME_EVEN][MAX_PRIME / LONG_LENGTH + 2];
+bit_array help[MAX_TABLE_PRIME][MAX_TABLE_PRIME][MAX_TABLE_PRIME / LONG_LENGTH + 2];
 
 /* allocate and initalise the sieve tables */
 void init_sieve(void)
@@ -606,16 +814,16 @@ int find_double_points(void)
      than ~ 100 */
   long wheight = floor(sqrt(height));
   long a, b, n;
-  struct stype {long p; long ap; int *ptr;} ssp0[NUM_PRIMES];
+  struct stype {long p; long ap; unsigned char *ptr;} ssp0[NUM_PRIMES];
   struct stype *ssp;
-  for(n = 0; n < sieve_primes2; n++)
+  for(n = 0; n < sieve_primes3; n++)
     ssp0[n].p = prime[pnn[n]];
   if(degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
   { /* can use only squares for a */
     long aa;
     for(aa = 1; (a = aa*aa) <= wheight; aa++)
     { long bmax;
-      for(ssp = &ssp0[0], n = 0; n < sieve_primes2; n++, ssp++)
+      for(ssp = &ssp0[0], n = 0; n < sieve_primes3; n++, ssp++)
       { long pn = pnn[n], ap0 = a%(ssp->p);
         if(ap0 == 0)
         { ssp->ap = 0;
@@ -629,7 +837,7 @@ int find_double_points(void)
       if(wheight < bmax) bmax = wheight;
       for(b = -bmax; b <= bmax; b++)
       { if(relprime(a, b)) /* a is positive */
-        { for(ssp = &ssp0[0], n = sieve_primes2; n; n--, ssp++)
+        { for(ssp = &ssp0[0], n = sieve_primes3; n; n--, ssp++)
           { long p = ssp->p, bp = b%p;
             if(bp < 0) bp += p;
             if(!ssp->ptr[((ssp->ap)*bp)%p]) goto nextb1;
@@ -644,7 +852,7 @@ nextb1: ;
   else
     for(a = 1; a <= wheight; a++)
     { long bmax;
-      for(ssp = &ssp0[0], n = 0; n < sieve_primes2; n++, ssp++)
+      for(ssp = &ssp0[0], n = 0; n < sieve_primes3; n++, ssp++)
       { long pn = pnn[n], ap0 = a%(ssp->p);
         if(ap0 == 0)
         { if(!has_infinity[pn]) goto nexta2;
@@ -659,7 +867,7 @@ nextb1: ;
       if(wheight < bmax) bmax = wheight;
       for(b = -bmax; b <= bmax; b++)
       { if(relprime(a, b)) /* a is positive */
-        { for(ssp = &ssp0[0], n = sieve_primes2; n; n--, ssp++)
+        { for(ssp = &ssp0[0], n = sieve_primes3; n; n--, ssp++)
           { long p = ssp->p, bp = b%p;
             if(bp < 0) bp += p;
             if(!ssp->ptr[((ssp->ap)*bp)%p]) goto nextb2;
@@ -685,7 +893,7 @@ nexta2: ;
 static long row_step(long a)
 {
   long m = 1, n;
-  for(n = 0; n < sieve_primes2; n++)
+  for(n = 0; n < sieve_primes3; n++)
   { long pn = pnn[n], p = prime[pn];
     if(!has_infinity[pn] && a % p == 0)
     { m *= p;
@@ -703,7 +911,7 @@ void find_points(void)
   init_fmodpsquare();
   /* allocate and initalise the sieve tables */
   init_sieve();
-  if(sieve_primes2 > 0 && prec[0].r == 0.0)
+  if(sieve_primes3 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
   /* the bit array and the tables of the chunks */
   init_sift();
@@ -1269,10 +1477,12 @@ void message(long n, long total)
     case 1: printf("\nprob = 0, hence no solutions.\n"); break;
     case 2: printf("\nFound %ld rational points on K lifting to J.\n", total);
             break;
-    case 4: printf("%ld primes used for first stage of sieving,\n",
+    case 4: printf("%ld primes used for the first stage of sieving,\n",
                    sieve_primes1);
-            printf("%ld primes used for both stages of sieving together.\n",
+            printf("%ld primes used for the first two stages together,\n",
                    sieve_primes2);
+            printf("%ld primes used for all three stages together.\n",
+                   sieve_primes3);
             break;
     case 5: printf("\ny^2 = "); print_poly(coeffs, total); printf("\n"); break;
     case 6: printf("max. Height = %ld\n", total); break;
@@ -1287,19 +1497,37 @@ void message(long n, long total)
               { printf("%ld", prime[pnn[i]]);
                 if(i < sieve_primes2 - 1) printf(", ");
               }
+              printf("\n Third stage: ");
+              for( ; i < sieve_primes3; i++)
+              { printf("%ld", prime[pnn[i]]);
+                if(i < sieve_primes3 - 1) printf(", ");
+              }
               printf("\n");
               break;
             }
     case 8:
-      printf("Probabilities: Min(%ld) = %f, Cut1(%ld) = %f, ",
-              prec[0].p, prec[0].r,
-              prec[sieve_primes1-1].p, prec[sieve_primes1-1].r);
-      printf("Cut2(%ld) = %f, Max(%ld) = %f\n\n",
-              prec[sieve_primes2-1].p, prec[sieve_primes2-1].r,
-              prec[num_primes-1].p, prec[num_primes-1].r);  break;
-    case 9: printf("Using speed ratios %f and %f\n", ratio1, ratio2); break;
+      { /* the survival rates: the best prime, the last of each stage, the
+           worst prime considered */
+        long i;
+        printf("Probabilities: Min(%ld) = %f", prec[0].p, prec[0].r);
+        for(i = 0; i < num_primes; i++)
+        { if(i + 1 == sieve_primes1 || i + 1 == sieve_primes2
+             || i + 1 == sieve_primes3)
+          { long j;
+            for(j = 0; prec[j].n != pnn[i]; j++) ;
+            printf(", Cut%d(%ld) = %f",
+                   (i + 1 == sieve_primes1) ? 1 :
+                   (i + 1 == sieve_primes2) ? 2 : 3,
+                   prec[j].p, prec[j].r);
+          }
+        }
+        printf(", Max(%ld) = %f\n\n",
+               prec[num_primes-1].p, prec[num_primes-1].r);
+        break;
+      }
     case 12: printf("\n%ld candidates survived the first stage,\n", num_surv1);
-             printf("%ld candidates survived the second stage.\n", num_surv2);
+             printf("%ld candidates survived the second stage,\n", num_surv2);
+             printf("%ld candidates survived the third stage.\n", num_surv3);
              break;
   }
   fflush(stdout);
@@ -1321,9 +1549,8 @@ void error(long errno)
     case 2:
       printf("\n");
       printf("Usage: j-points 'a_0 a_1 ... a_d' max_height\n");
-      printf("                [-n num_primes1] [-N num_primes2] [-p num_primes]\n");
-      printf("                [-r ratio1] [-R ratio2] [-s size] [-f format]\n");
-      printf("                [-1] [-q] [-a]\n");
+      printf("                [-n num_primes1] [-M num_primes2] [-N num_primes3]\n");
+      printf("                [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]\n");
       break;
   }
   fflush(stdout);
