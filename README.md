@@ -17,7 +17,7 @@ The default build is portable; `make VECTOR=avx2 j-points` (or `sse2`)
 builds the sieve's passes over the bit array with vectors of four (two)
 words, which is faster on a machine with that instruction set and does not
 run on one without.
-`make test` runs six suites and fails if any of them does: test1, one curve
+`make test` runs seven suites and fails if any of them does: test1, one curve
 with many points at height 2000; test2, 61 curves of every kind (testcurves2)
 at heights up to 4500, whose reference is the program's output checked by an
 unsieved run of every curve (verify-test2.sh, an hour of CPU time); test3,
@@ -38,7 +38,7 @@ Please acknowledge use of the program in published work.
 ## Usage
 
     j-points 'a_0 a_1 ... a_d' h [-n num_primes1] [-M num_primes2] [-N num_primes3]
-             [-p num_primes] [-s size] [-f format] [-1] [-q] [-a]
+             [-p num_primes] [-s size] [-t threads] [-f format] [-1] [-q] [-a]
 
 where
 
@@ -70,6 +70,10 @@ The optional arguments, which can be given in any order, are these.
   A smaller value can give better performance if the array then fits into the
   cache in its entirety, so the effect of this parameter depends heavily on
   the size and speed of the cache.
++ `-t threads`: the number of threads (default 1). The values of the first
+  coordinate are the units of work; the points are printed in the order of
+  the search whatever the number of threads, so the output does not change.
+  With `-1` the search runs in one thread.
 + `-f format`: a format string for printf to print the points with. It should
   take four long integers, the coordinates on the Kummer surface. The default
   is `"(%ld, %ld, %ld, %ld)\n"`. Backslash escapes are not interpreted, so a
@@ -261,6 +265,11 @@ sieve together.
     500 and more, and only when it admits less than everything modulo 16.
     1.5x on `-a` runs of small-coefficient curves, 1.1x on #28, nothing on
     the record curve (f is a square modulo 4 there).
+  + Threads (`-t`): the values of the first coordinate are handed out to
+    the threads in order, each sieves its rows with its own state, and the
+    points of each value are printed in order, so the output is that of a
+    single thread. Four times faster with eight threads on the record curve
+    on a laptop with two performance and eight efficiency cores.
 
 Michael Stoll, October 1998 - September 2026.
 

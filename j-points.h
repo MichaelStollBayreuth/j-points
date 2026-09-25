@@ -101,10 +101,11 @@ extern long degree;
 extern MP_INT coeffs[7];
 extern int sift_tube(long, long, long);
 
-extern long num_surv1;   /* Used to count the survivors of the first stage */
-extern long num_surv2;   /* Used to count the survivors of the second stage */
-extern long num_surv3;   /* Used to count the survivors of the third stage */
-extern bit_array *survivors; /* In this array the sieving takes place */
+extern _Thread_local long num_surv1;   /* the survivors of the first stage, per thread */
+extern _Thread_local long num_surv2;   /* ... of the second stage */
+extern _Thread_local long num_surv3;   /* ... of the third stage */
+extern _Thread_local bit_array *survivors; /* the bit array of the thread */
+extern long num_threads;
 extern long height;          /* The height bound */
 extern long array_size;      /* The size of the survivors array (in longs) */
 extern bit_array begmask, endmask;
@@ -115,4 +116,5 @@ extern void error(long);
 
 extern long sieve_rowlen(long);
 extern void init_sift(void);
+extern void init_thread_sieve(void);
 extern int sift(long, long);
