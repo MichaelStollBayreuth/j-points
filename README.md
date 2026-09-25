@@ -23,9 +23,12 @@ over every coprime triple that uses Magma's Kummer package for the points
 above a triple and their lifts (mkref4.m); and testbrute, the sieve against
 the unsieved search at height 50. Magma is only needed to regenerate
 testbase4; its own search for points is a port of j-points and is not used
-as a reference. `make testrich` runs twelve searches on point-rich curves
-from the ratpoints suites (testcurves-rich) against the output of 2.1, a
-baseline for work on the sieve rather than a verified reference.
+as a reference. `make testrich` runs fourteen searches with `-a` on
+point-rich curves (testcurves-rich: from the ratpoints suites, and the
+curve with 642 known rational points of Müller and Stoll, ANT 10 (2016))
+against the output of 2.1, checked by the unsieved run: the regime of the
+enumeration of points of bounded canonical height, and the baseline for
+work on the sieve.
 
 Please acknowledge use of the program in published work.
 

@@ -12,12 +12,14 @@ JP=${JP:-./j-points}
 P=${P:-4}
 CURVES=${CURVES:-testcurves2}
 REF=${REF:-testbase2}
+# options added to every run, as test2.sh adds them (-a for the rich list)
+JPOPTS=${JPOPTS:-}
 [ -x "$JP" ] || { echo "$JP: not an executable" >&2; exit 2; }
 if [ "$1" = "--one" ]; then
   # one curve: the block of testbase2 against the unsieved run
   coeffs=$2; h=$3
   ref=$(awk -v hdr="# j-points '$coeffs' $h" '$0 == hdr {f = 1; next} /^#/ {f = 0} f' "$REF")
-  got=$("$JP" "$coeffs" "$h" -q -n 0 -N 0 | LC_ALL=C sort)
+  got=$("$JP" "$coeffs" "$h" -q -n 0 -N 0 $JPOPTS | LC_ALL=C sort)
   if [ "$ref" = "$got" ]; then
     echo "# j-points '$coeffs' $h: same $(echo "$got" | grep -c '(') points"
   else
@@ -31,6 +33,6 @@ if [ "$1" = "--one" ]; then
 fi
 rm -f verify-test2-failed.out
 grep -v '^#' "$CURVES" | grep -v '^$' | cut -d';' -f1,2 | tr ';' '\n' \
-  | xargs -d '\n' -n 2 -P "$P" sh -c 'CURVES="$CURVES" REF="$REF" "$0" --one "$1" "$2" || echo failed >> verify-test2-failed.out' "$0"
+  | xargs -d '\n' -n 2 -P "$P" sh -c 'CURVES="$CURVES" REF="$REF" JPOPTS="$JPOPTS" "$0" --one "$1" "$2" || echo failed >> verify-test2-failed.out' "$0"
 [ -f verify-test2-failed.out ] && { rm -f verify-test2-failed.out; exit 1; }
 exit 0
