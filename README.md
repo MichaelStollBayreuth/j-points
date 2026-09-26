@@ -218,21 +218,24 @@ the program works") -- and the numbers of primes of its three stages.
 | `j-points '1 6 5 22 22 8 1' 1000 -a`      | 0.27 s  |     16 | rows, 9+17+19 |
 | `j-points '1 6 5 22 22 8 1' 2000 -a`      | 1.3 s   |     17 | region, 8+14+18 |
 | `j-points '1 6 5 22 22 8 1' 5000 -a`      | 15 s    |     18 | region, 8+15+19 |
+| `j-points '1 6 5 22 22 8 1' 10000 -a`     | 93 s    |     18 | region, 8+20+24 |
 | `j-points '21 116 171 128 55 12 1' 1000 -a` | 0.22 s |     39 | rows, 8+16+18 |
 | `j-points '21 116 171 128 55 12 1' 2000 -a` | 1.3 s  |     43 | rows, 8+15+19 |
 | `j-points '21 116 171 128 55 12 1' 5000 -a` | 13 s   |     47 | region, 8+16+20 |
+| `j-points '21 116 171 128 55 12 1' 10000 -a` | 84 s  |     51 | region, 8+20+24 |
 | `j-points "$C" 1000 -a`                   | 0.29 s  |   4923 | rows, 12+18+22 |
 | `j-points "$C" 2000 -a`                   | 1.7 s   |   7650 | rows, 11+20+23 |
-| `j-points "$C" 4000 -a`                   | 11 s    |  11739 | rows, 11+25+27 |
+| `j-points "$C" 5000 -a`                   | 20 s    |  13395 | rows, 11+25+28 |
+| `j-points "$C" 10000 -a`                  | 137 s   |  19516 | region, 11+25+29 |
 
 The last three rows are the curve with 642 known rational points of
 Müller and Stoll (ANT 10 (2016)), whose Jacobian has many points of small
 height: `C='247747600 -985905640 567207969 2396040466 52485681 -470135160
 82342800'`. With `-a` the bound is on the first three coordinates only, the
-enumeration of the points of bounded canonical height (see the option). The
-plain runs at 10000 show the tube's growth with the height bound; the
-threads (`-t`) divide these times by up to the number of cores, as the
-change log records.
+enumeration of the points of bounded canonical height (see the option); its
+runs grow with the cube of the height bound, the plain runs in the tube
+less. The threads (`-t`) divide these times by up to the number of cores, as
+the change log records.
 
 ## Change log
 

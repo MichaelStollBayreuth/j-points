@@ -49,7 +49,7 @@ measured; the README describes the current version.
     coordinates beyond the machine word; gmp prints them now.
   + Heights above 2^31 overflowed a difference in the lifting test.
   + The usage message names every option; the version banner said 1.2.
-+ 25-Sep-2026, version 3.0: the sieve made faster, in steps; the points
++ 26-Sep-2026, version 3.0: the sieve made faster, in steps; the points
   printed are the same.
   + The bookkeeping of a row without integer divisions: what the sieve
     needs to know about a chunk of the bit array (where each prime's table
