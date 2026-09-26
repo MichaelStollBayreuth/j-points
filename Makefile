@@ -32,8 +32,19 @@ CCFLAGS =
 # The width of the sieve's passes, in words (see VW in j-points.h): the
 # default is the scalar walk; "make VECTOR=avx2" builds the passes with
 # vectors of four words (AVX2), "make VECTOR=sse2" with two (SSE2, any
-# x86-64).  The build is then tied to that instruction set.
+# x86-64).  The build is then tied to that instruction set.  The choice
+# sticks: every build records its VECTOR in vector.mk, which the next make
+# (test, tune, install-bin, ...) uses unless the command line gives another,
+# so that "make install-bin" installs the binary that was built; "make
+# VECTOR= j-points" returns to the scalar build, "make distclean" forgets
+# the choice.
 VECTOR =
+-include vector.mk
+ifeq (${MAKELEVEL},0)
+ifneq (${VECTOR},)
+$(info building with VECTOR=${VECTOR} (the choice sticks; "make VECTOR= ..." for the scalar build))
+endif
+endif
 VFLAGS_avx2 = -DVW=4 -mavx2
 VFLAGS_sse2 = -DVW=2 -msse2
 VFLAGS = ${VFLAGS_${VECTOR}}
@@ -67,7 +78,7 @@ DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md CHANGE_LOG.md gpl-
 
 # Temporary files that are generated during build
 # and can be removed afterwards
-TEMPFILES = j-points.o j-sift.o j-sift.s build.stamp build.stamp.tmp test.out test2.out test3.out test4.out testrich.out testthreads.out \
+TEMPFILES = j-points.o j-sift.o j-sift.s build.stamp build.stamp.tmp vector.mk.tmp test.out test2.out test3.out test4.out testrich.out testthreads.out \
             testbrute.out testbrute-sieved.out testbrute-exact.out testbrute-failed.out \
             verify-test2-failed.out verify-test3.m
 
@@ -174,18 +185,21 @@ clean:
 	${RM} ${TEMPFILES}
 
 distclean: clean
-	${RM} ${TARGETFILES} tuning.mk
+	${RM} ${TARGETFILES} tuning.mk vector.mk
 
 j-points: j-points.o j-sift.o
 	${CC} j-points.o j-sift.o -o j-points ${LFLAGS} ${CCFLAGS}
 
 # What is compiled depends on VECTOR and on tuning.mk, which make cannot see
 # by itself: build.stamp records the flags in use, so that a change to
-# either rebuilds the objects.
+# either rebuilds the objects; vector.mk records the VECTOR for the next make
+# (see above).
 .PHONY: FORCE
 build.stamp: FORCE
 	@echo '${VFLAGS} ${TUNEFLAGS}' > $@.tmp; \
 	 if cmp -s $@.tmp $@; then rm $@.tmp; else mv $@.tmp $@; fi
+	@echo 'VECTOR = ${VECTOR}' > vector.mk.tmp; \
+	 if cmp -s vector.mk.tmp vector.mk; then rm vector.mk.tmp; else mv vector.mk.tmp vector.mk; fi
 
 j-points.o: j-points.c j-points.h build.stamp
 	${CC} j-points.c -c -o j-points.o ${CCFLAGS0} ${VFLAGS} ${TUNEFLAGS} ${CCFLAGS}
