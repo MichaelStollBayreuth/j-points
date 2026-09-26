@@ -59,7 +59,7 @@ endif
 VERSION = 3.0
 
 # Files that make up the distribution
-DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md gpl-2.0.txt \
+DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md CHANGE_LOG.md gpl-2.0.txt \
             testbase testcurves2 testbase2 testbase3 testbase4 \
             testcurves-rich testbase-rich \
             test2.sh test3.sh test4.sh testbrute.sh tune.sh \
