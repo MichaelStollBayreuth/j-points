@@ -56,11 +56,11 @@ measured; the README describes the current version.
     row starts in it, the residue of its first word) is computed once at
     set-up instead of per row, and the residues of the first two
     coordinates are kept and advanced from one row to the next. 1.2-1.4x.
-  + The sieve tables allocated per prime in use, with rows of p+1 words,
-    instead of a static array of 480 MB (of which a run touched about 100
-    MB; now 15-20 MB), the row pointers advanced from row to row, and the
-    fill of the bit array merged into the first prime's pass. Another
-    1.1-1.15x.
+  + The sieve tables allocated per prime in use, with rows of p+1 words
+    (p plus the width of the vectors, in a vector build), instead of a
+    static array of 480 MB (of which a run touched about 100 MB; now 15-20
+    MB), the row pointers advanced from row to row, and the fill of the bit
+    array merged into the first prime's pass. Another 1.1-1.15x.
   + The rows (a, b) that a sieving prime p empties outright are no longer
     sieved: when the leading coefficient is not a square modulo p, the
     curve has no point at infinity over F_p, so no point reduces to a
@@ -93,7 +93,7 @@ measured; the README describes the current version.
     curves on which f is negative on a good part of the line (c1 at 2000
     and 4000, c3 at 2000 and 4000), nothing on the record curve (f > 0 nearly
     everywhere); 1.1x to 1.25x on plain runs of such curves. The range
-    limit of the tube's rows raised from 8 to 24, and cells in which the
+    limit of the tube's rows raised from 8 to 12, and cells in which the
     condition holds throughout taken whole: 1.1x on c4's plain run.
   + The passes of the sieve over the bit array can be built with vectors of
     two or four words (`make VECTOR=sse2` or `avx2`), behind a compile-time
