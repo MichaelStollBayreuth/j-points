@@ -67,26 +67,41 @@ long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
 
 /* The cost model that chooses the sieving primes, their stages and the
    mode of the sieve (see choose_primes): the costs in cycles of one core,
-   measured on the curve of test1 at 2000 with the sieve of 3.0.  Only
-   their ratios matter for the choice, and those are much the same on any
-   current machine.  These are the defaults: "make tune" measures the
-   machine's own and writes them to tuning.mk, whose -DCOST_X=value
-   replaces a default here, and -c X=value replaces it for one run. */
+   measured one operation at a time on the curve of test1 at 2000 with
+   the sieve of 3.0, and four of them -- the pass, its size penalty, the
+   second-stage test, the tube's test -- then adjusted end to end by
+   "make tune" on a laptop and a desktop of 2023 for each width VW of the
+   passes: a pass costs less per word the wider its vectors, and the
+   balance between the stages shifts with it (the change log of 3.0).
+   Only their ratios matter for the choice.  These are the defaults:
+   "make tune" measures the machine's own and writes them to tuning.mk,
+   whose -DCOST_X=value replaces a default here, and -c X=value replaces
+   it for one run. */
+#if VW == 4
+#define COST_AND_VW     0.45
+#define COST_SIZE_VW  450.0
+#define COST_TEST2_VW   4.0
+#else                        /* the scalar build, and SSE2 (two words per
+                                AND buy less than the sieve's other work
+                                gives back: measured the same set) */
+#define COST_AND_VW     0.63
+#define COST_SIZE_VW  756.0
+#define COST_TEST2_VW   5.6
+#endif
 #ifndef COST_AND
-#define COST_AND      0.9  /* one word of one first-stage pass ... */
+#define COST_AND   COST_AND_VW   /* one word of one first-stage pass ... */
 #endif
 #ifndef COST_SIZE
-#define COST_SIZE   270.0  /* ... times 1 + p/COST_SIZE: the tables of the
-                              larger primes spill out of the cache (12%
-                              more per word for a set of primes with mean
-                              84 than for one with mean 51) */
+#define COST_SIZE  COST_SIZE_VW  /* ... times 1 + p/COST_SIZE: the tables
+                                    of the larger primes spill out of the
+                                    cache */
 #endif
 #ifndef COST_WORD
 #define COST_WORD    56.0  /* a word surviving the first stage: found and
                               handed to the second stage */
 #endif
 #ifndef COST_TEST2
-#define COST_TEST2    8.0  /* one second-stage test of a word */
+#define COST_TEST2 COST_TEST2_VW /* one second-stage test of a word */
 #endif
 #ifndef COST_BIT
 #define COST_BIT     30.0  /* a bit surviving the second stage: found,
@@ -113,7 +128,7 @@ long num_primes = NUM_PRIMES; /* the primes considered, from the beginning
 #define COST_TWORD   12.0  /* a word the tube leaves, besides its tests */
 #endif
 #ifndef COST_TTEST
-#define COST_TTEST    4.0  /* one test of such a word (no early exit) */
+#define COST_TTEST    2.0  /* one test of such a word (no early exit) */
 #endif
 #ifndef COST_TROW
 #define COST_TROW    45.0  /* a row with words in the tube: the set-up */
@@ -322,6 +337,14 @@ int main(int argc, char *argv[])
 
   if(LONG_SHIFT == 0) error(1);
   init_main();
+  /* "j-points -c list" prints the constants of the cost model in force
+     in this build, which tune.sh measures against */
+  if(argc == 3 && strcmp(argv[1], "-c") == 0 && strcmp(argv[2], "list") == 0)
+  { size_t k;
+    for(k = 0; k < NUM_COSTS; k++)
+    { printf("%s %g\n", cost_names[k].name, *cost_names[k].value); }
+    return(0);
+  }
   /* read input */
   if(argc < 3) error(2);
   read_input(argc-1, &argv[0]);

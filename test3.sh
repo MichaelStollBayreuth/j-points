@@ -49,6 +49,10 @@
 # 49     -c with a name the model does not have: an error
 # 50     -c: two constants of the cost model set (the cell of the tube's
 #        analysis priced out, so the box is sieved), listed in the report
+# The reports (39, 45, 46, 50) pin the four constants of the cost model
+# whose defaults depend on the width of the sieve's passes (VECTOR) to the
+# scalar build's values with -c, since they name the primes chosen: the
+# reference is then the same for every build.
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
 # whose target fails with 1 when they differ)
@@ -99,15 +103,15 @@ e '1 2 3 4 5 6 7' 100 -x
 e '1 2 3 4 5 6 7' 100 -n
 e '1 2 3 4 5 6 7' 100 -p 0
 e '1 2 3 4 5 6 7' 100 -s 0
-f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -n 3 -M 6 -N 9
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -n 3 -M 6 -N 9 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
 e '2 0 5 0 4 0 1' 100
 f 'cat; echo' '1 178 817 -274 16 1' 60 -q -f '<%ld:%ld:%ld:%ld>\t\\\n'
 t '21 116 171 128 55 12 1' 60 -q -w 20
 t '21 116 171 128 55 12 1' 20 -q -w 500
 t '1 178 817 -274 16 1' 60 -q -a -w 100000
-f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -w 50 -n 3 -M 6 -N 9
-f "grep -v '^This is j-points'" '0 -1 2 -1 3 1 1' 100 -n 3 -M 6 -N 9
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -w 50 -n 3 -M 6 -N 9 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '0 -1 2 -1 3 1 1' 100 -n 3 -M 6 -N 9 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
 t '0 -1 2 -1 3 1 1' 60 -q -a
 t '0 -1 2 -1 3 1 1' 300 -q -1
 e '21 116 171 128 55 12 1' 100 -c FOO=1
-f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -c CELL=1e6,AND=0.45
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 100 -c CELL=1e6,AND=0.45,SIZE=756,TEST2=5.6,TTEST=2

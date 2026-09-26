@@ -20,9 +20,10 @@ change log has the measurements) and does not run on one without.
 `make tune` measures the constants of the cost model that chooses the
 sieving primes, their stages and the mode of the sieve on the machine at
 hand and writes them to tuning.mk, which the next `make` compiles in
-(tune.sh; about 40 minutes a pass on an idle machine). The defaults were
-measured on one machine, and since only their ratios matter, which are much
-the same elsewhere, this is rarely needed.
+(tune.sh; about two hours on an idle machine). The defaults were measured
+this way on a laptop and a desktop of 2023, for each vector width, and a
+tune there moves them by a few per cent at most; an older core may want
+more.
 `make test` runs seven suites and fails if any of them does: test1, one curve
 with many points at height 2000; test2, 61 curves of every kind (testcurves2)
 at heights up to 4500, whose reference is the program's output checked by an
@@ -99,7 +100,8 @@ The optional arguments, which can be given in any order, are these.
   primes, their stages and the mode of the sieve, as `NAME=value`, several
   separated by commas, the names those of the `COST_` constants of j-points.c
   without the prefix (`-c CELL=640,AND=0.45`); the run's report lists them.
-  For experiments with the model and for `make tune`.
+  For experiments with the model and for `make tune`. `j-points -c list`
+  alone prints the constants in force in the build.
 + `-1`: stop as soon as one point has been found.
 + `-q`: suppress all messages other than the points found.
 + `-a`: find all points whose image in P^2 under the first three coordinates
@@ -328,8 +330,21 @@ sieve together.
     enumeration of the points of bounded modified naive height without a
     post-filter.
   + `make tune` measures the constants of the cost model on the machine at
-    hand and writes them to tuning.mk (tune.sh, on the model of ratpoints');
-    `-c` sets them for one run.
+    hand and writes them to tuning.mk (tune.sh, on the model of ratpoints':
+    a coordinate descent over thirteen constants on five runs at 2000 that
+    cover the box, the tube, the tube cut to the region and the region,
+    every candidate timed back to back with the current settings, then a
+    pruning pass that keeps the moves that matter); `-c` sets the constants
+    for one run. On a laptop and a desktop of 2023 the tune moved four of
+    them the same way -- the price of a first-stage pass down, and with it
+    the size penalty of the larger primes and the tube's test, the
+    second-stage test cheaper -- and by more the wider the vectors of the
+    passes; those are the defaults now, per vector width. Against the old
+    ones: 3-9% on most runs of the scalar build, 5-12% with SSE2 and AVX2,
+    the region runs unmoved, and a tune from the new defaults moves nothing
+    on the desktop; an Ivy Bridge of 2012 still gains up to 9% on most runs,
+    though its own tune moves other constants. A Xeon of 2019 points the
+    same way but was too noisy to measure.
   + Threads (`-t`): the values of the first coordinate are handed out to the
     threads in order, each sieves its rows with its own state, and the
     points of each value are printed in order, so the output is that of a

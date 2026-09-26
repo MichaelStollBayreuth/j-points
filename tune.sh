@@ -2,8 +2,8 @@
 # Find good values for the constants of the cost model that chooses the
 # sieving primes, their stages and the mode of the sieve -- the COST_
 # constants of j-points.c -- on this machine, and write them to tuning.mk,
-# which the Makefile includes.  Run it as "make tune"; it needs ./j-points and
-# j-points.c (for the defaults) and modifies no source file.
+# which the Makefile includes.  Run it as "make tune"; it needs ./j-points
+# and modifies no source file.
 #
 # The constants are the costs in cycles of the pieces of work of a run (a word
 # of a first-stage pass, a word or a bit that survives a stage, an exact
@@ -64,7 +64,6 @@ NOISE=${NOISE:-0.02}       # ... and the baseline's self-ratio is within this
 WARMUP=${WARMUP:-20}       # seconds of load before measuring
 CPU=${CPU-0}               # the core the runs are pinned to; empty: none
 JP=${JP:-./j-points}
-SRC=${SRC:-j-points.c}
 # the constants swept, in this order, and the factors tried on each
 CONSTS=${CONSTS:-"AND SIZE WORD TEST2 BIT TEST3 EXACT ROW CELL TWORD TTEST RROW RANGE"}
 FACTORS=${FACTORS:-"0.5 0.7 1.4 2"}
@@ -78,26 +77,25 @@ RUNS=(
 )
 
 [ -x "$JP" ] || { echo "tune.sh: $JP is missing; build it first" >&2; exit 1; }
-[ -f "$SRC" ] || { echo "tune.sh: $SRC is missing" >&2; exit 1; }
 
-# The settings to measure against: the defaults of j-points.c, or those of
-# tuning.mk when it is in effect (then the binary was built with them).
-# They are passed explicitly to every run, the baseline included, so that
-# the comparison never depends on what happens to be compiled in.
-declare -A def cur win trial
+TMP=$(mktemp -d) || exit 1
+trap 'rm -rf "$TMP"' EXIT INT TERM
+
+# The settings to measure against: the constants in force in the binary
+# ("j-points -c list": the defaults of j-points.c for its width of the
+# passes, or those of tuning.mk when it is in effect and the binary was
+# built with them).  They are passed explicitly to every run, the baseline
+# included, so that the comparison never depends on what happens to be
+# compiled in.
+declare -A cur win trial
+$JP -c list > "$TMP/list" 2>/dev/null || { echo "tune.sh: $JP -c list failed" >&2; exit 1; }
 for k in $CONSTS; do
-  v=$(sed -n "s/^# *define  *COST_$k  *\([0-9.eE+-]*\).*/\1/p" "$SRC")
-  [ -n "$v" ] || { echo "tune.sh: cannot read COST_$k from $SRC" >&2; exit 1; }
-  def[$k]=$v; cur[$k]=$v
+  v=$(awk -v k="$k" '$1 == k { print $2 }' "$TMP/list")
+  [ -n "$v" ] || { echo "tune.sh: $JP -c list does not name COST_$k" >&2; exit 1; }
+  cur[$k]=$v
 done
 if [ -f tuning.mk ] && [ "$(sed -n 's/^TUNED_FOR *= *//p' tuning.mk)" = "${TUNE_CONFIG:-}" ]
-then
-  for k in $CONSTS; do
-    v=$(sed -n "s/.*-DCOST_$k=\([^ 	]*\).*/\1/p" tuning.mk)
-    [ -n "$v" ] && cur[$k]=$v
-  done
-  echo "tuning.mk is already in effect; measuring against its values"
-fi
+then echo "tuning.mk is already in effect; measuring against its values"; fi
 # the -c argument for an assignment of the constants
 settings() { local -n arr=$1; local s="" k
              for k in $CONSTS; do s+="${s:+,}$k=${arr[$k]}"; done; echo "$s"; }
@@ -107,9 +105,6 @@ echo "measuring against $BASE"
 echo "on $(uname -n), ${TUNE_CONFIG:-no configuration given}, $ROUNDS rounds, up to $PASSES passes"
 
 if [ -n "$CPU" ] && command -v taskset >/dev/null 2>&1; then PIN="taskset -c $CPU"; else PIN=""; fi
-
-TMP=$(mktemp -d) || exit 1
-trap 'rm -rf "$TMP"' EXIT INT TERM
 
 # the reference output of every run, which every candidate must reproduce
 for i in "${!RUNS[@]}"; do
@@ -254,9 +249,10 @@ done
 SELF=$(awk '{ d = $1 - 1; if (d < 0) d = -d; if (d > w) w = d }
             END { printf "%.5f", 1 + w }' "$TMP/selfs")
 WIN=$(settings win)
-flags=""
+flags=""; moves=""
 for k in $CONSTS; do
-  [ "${win[$k]}" != "${def[$k]}" ] && flags+=" -DCOST_$k=${win[$k]}"
+  flags+=" -DCOST_$k=${win[$k]}"
+  [ "${win[$k]}" != "${cur[$k]}" ] && moves+="${moves:+, }COST_$k ${cur[$k]} -> ${win[$k]}"
 done
 echo
 verdict=$(awk -v b="$LASTBEST" -v s="$SELF" -v m="$MARGIN" -v z="$NOISE" \
@@ -274,7 +270,7 @@ case $verdict in
     if [ "$WIN" = "$BASE" ]; then
       echo "No constant moved: the current settings are kept and nothing is written."
     else
-      echo "The settings found ($flags) measured $(awk -v b=$LASTBEST 'BEGIN{printf "%.1f", 100*(1-b)}')% better than the"
+      echo "The settings found ($moves) measured $(awk -v b=$LASTBEST 'BEGIN{printf "%.1f", 100*(1-b)}')% better than the"
       echo "current ones, less than the required $(awk -v m=$MARGIN 'BEGIN{printf "%.0f", 100*(1-m)}')%: kept, nothing written."
     fi
     ;;
@@ -285,11 +281,12 @@ case $verdict in
 # TUNED_FOR records the configuration it was measured for; the Makefile
 # ignores this file if the configuration has changed since.
 # Measured against $BASE
-# (the constants not listed here keep their values in j-points.c).
+# and moved: $moves
+# (the constants not listed keep their values in j-points.c).
 TUNED_FOR = ${TUNE_CONFIG:-unknown}
 TUNEFLAGS =$flags
 END
-    echo "Wrote tuning.mk:$flags"
+    echo "Wrote tuning.mk with the moves $moves"
     echo "$(awk -v b=$LASTBEST 'BEGIN{printf "%.1f", 100*(1-b)}')% better than the current settings."
     echo "Run 'make' to rebuild with it; delete tuning.mk to discard it."
     ;;
