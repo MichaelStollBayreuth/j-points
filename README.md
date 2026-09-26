@@ -16,7 +16,10 @@ and install the executable in /usr/local/bin with `make install-bin`.
 The default build is portable; `make VECTOR=avx2 j-points` (or `sse2`)
 builds the sieve's passes over the bit array with vectors of four (two)
 words, which can be faster on a machine with that instruction set
-(CHANGE_LOG.md has the measurements) and does not run on one without.
+(CHANGE_LOG.md has the measurements) and does not run on one without. The
+choice sticks for the following `make`, `make test`, `make tune` and `make
+install-bin` in that tree (vector.mk records it) until `make VECTOR=
+j-points` returns to the scalar build.
 `make tune` measures the constants of the cost model that chooses the
 sieving primes, their stages and the mode of the sieve on the machine at
 hand and writes them to tuning.mk, which the next `make` compiles in

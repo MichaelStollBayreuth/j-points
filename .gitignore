@@ -18,5 +18,8 @@
 # the flags of the last build (see the Makefile)
 /build.stamp
 /build.stamp.tmp
+# the vector width of the last build, kept for the next make
+/vector.mk
+/vector.mk.tmp
 # machine-dependent tuning written by "make tune"
 /tuning.mk
