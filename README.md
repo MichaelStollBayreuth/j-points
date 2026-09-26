@@ -15,8 +15,8 @@ The program needs the GNU gmp library. Build and test it with
 and install the executable in /usr/local/bin with `make install-bin`.
 The default build is portable; `make VECTOR=avx2 j-points` (or `sse2`)
 builds the sieve's passes over the bit array with vectors of four (two)
-words, which can be faster on a machine with that instruction set (the
-CHANGE_LOG.md has the measurements) and does not run on one without.
+words, which can be faster on a machine with that instruction set
+(CHANGE_LOG.md has the measurements) and does not run on one without.
 `make tune` measures the constants of the cost model that chooses the
 sieving primes, their stages and the mode of the sieve on the machine at
 hand and writes them to tuning.mk, which the next `make` compiles in
@@ -24,6 +24,7 @@ hand and writes them to tuning.mk, which the next `make` compiles in
 this way on a laptop and a desktop of 2023, for each vector width, and a
 tune there moves them by a few per cent at most; an older core may want
 more.
+
 `make test` runs seven suites and fails if any of them does: test1, one curve
 with many points at height 2000; test2, 61 curves of every kind (testcurves2)
 at heights up to 4500, whose reference is the program's output checked by an
@@ -31,14 +32,15 @@ unsieved run of every curve (verify-test2.sh, an hour of CPU time); test3,
 the options, messages and errors, checked likewise (verify-test3.py); test4,
 the same 61 curves at height 30, with and without `-a`, against a brute force
 over every coprime triple that uses Magma's Kummer package for the points
-above a triple and their lifts (mkref4.m); and testbrute, the sieve against
-the unsieved search at height 50; and testrich, fourteen searches with `-a`
-on point-rich curves (testcurves-rich: from the ratpoints suites, and the
-curve with 642 known rational points of Müller and Stoll, ANT 10 (2016)),
-the regime of the enumeration of points of bounded canonical height, whose
-reference was checked by the unsieved run as well. Magma is only needed to
-regenerate testbase4; its own search for points is a port of j-points and
-is not used as a reference.
+above a triple and their lifts (mkref4.m); testbrute, the sieve against the
+unsieved search at height 50; testrich, fourteen searches with `-a` on
+point-rich curves (testcurves-rich: from the ratpoints suites, and the curve
+with 642 known rational points of Müller and Stoll, ANT 10 (2016)), the
+regime of the enumeration of points of bounded canonical height, whose
+reference was checked by the unsieved run as well; and testthreads, test1,
+test2 and testrich run with two and three threads against the same
+references. Magma is only needed to regenerate testbase4; its own search for
+points is a port of j-points and is not used as a reference.
 
 Please acknowledge use of the program in published work.
 
@@ -46,7 +48,7 @@ Please acknowledge use of the program in published work.
 
     j-points 'a_0 a_1 ... a_d' h [-n num_primes1] [-M num_primes2] [-N num_primes3]
              [-p num_primes] [-s size] [-t threads] [-f format] [-w bound4]
-             [-1] [-q] [-a]
+             [-c constants] [-1] [-q] [-a]
 
 where
 
@@ -90,7 +92,7 @@ The optional arguments, which can be given in any order, are these.
   word are printed by gmp through the same format.
 + `-w bound4`: the bound on the fourth coordinate, in place of h: the program
   finds the points with |a|, |b|, |c| <= h and |d| <= bound4. This is the
-  enumeration of the points of bounded modified naive height (Mueller-Stoll,
+  enumeration of the points of bounded modified naive height (Müller-Stoll,
   Canonical heights on genus-2 Jacobians, Section 17), in which the fourth
   coordinate is divided by the maximum ||f|| of the |a_i|: the points with
   modified height at most log N are exactly those of `-w W` with h = N and
@@ -228,7 +230,7 @@ the program works") -- and the numbers of primes of its three stages.
 | `j-points "$C" 5000 -a`                   | 20 s    |  13395 | rows, 11+25+28 |
 | `j-points "$C" 10000 -a`                  | 137 s   |  19516 | region, 11+25+29 |
 
-The last three rows are the curve with 642 known rational points of
+The last four rows are the curve with 642 known rational points of
 Müller and Stoll (ANT 10 (2016)), whose Jacobian has many points of small
 height: `C='247747600 -985905640 567207969 2396040466 52485681 -470135160
 82342800'`. With `-a` the bound is on the first three coordinates only, the
