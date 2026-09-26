@@ -2,8 +2,8 @@
 # Find good values for the constants of the cost model that chooses the
 # sieving primes, their stages and the mode of the sieve -- the COST_
 # constants of j-points.c -- on this machine, and write them to tuning.mk,
-# which the Makefile includes.  Run it as "make tune"; it needs ./j-points and
-# j-points.c (for the defaults) and modifies no source file.
+# which the Makefile includes.  Run it as "make tune"; it needs ./j-points
+# and modifies no source file.
 #
 # The constants are the costs in cycles of the pieces of work of a run (a word
 # of a first-stage pass, a word or a bit that survives a stage, an exact
@@ -20,9 +20,19 @@
 #
 # The sweep is a coordinate descent: each of the constants that decide the
 # choices in turn, at half, 0.7, 1.4 and twice its value, the others at the
-# best values found so far; then a second pass from the result, unless the
-# first moved nothing.  The constants are passed to every run with -c, so no
-# rebuild is needed; the winners go to tuning.mk as -D flags.
+# best values found so far, the best of the stage winning however small its
+# lead; then a second pass from the result, unless the first moved nothing.
+# The cost surface is flat in most directions, so most of the winners are
+# drift within the noise -- but a drifted constant can be what lets the next
+# one gain (the cost of a surviving word and of its second-stage test only
+# pay together), which a descent that moves nothing for less than the noise
+# never finds.  So the descent runs free, and a pruning pass then puts every
+# constant that moved back to its value in turn and leaves it back unless the
+# set is then more than STEP worse than the full set of winners (against the
+# full set, not against the last pruned set: the losses of the steps add up,
+# and this bounds their sum): tuning.mk lists what matters.  The constants
+# are passed to every run with -c, so no rebuild is needed; the winners go to
+# tuning.mk as -D flags.
 #
 # Measuring is the delicate part, and naive timing does not work.  The cost
 # surface is flat -- a factor of two in most constants costs under 3% -- while
@@ -49,11 +59,11 @@ export LC_ALL=C
 ROUNDS=${ROUNDS:-3}
 PASSES=${PASSES:-2}
 MARGIN=${MARGIN:-0.98}     # accept only if the best ratio is below this
+STEP=${STEP:-0.01}         # the pruning leaves the winners' gain within this
 NOISE=${NOISE:-0.02}       # ... and the baseline's self-ratio is within this
 WARMUP=${WARMUP:-20}       # seconds of load before measuring
 CPU=${CPU-0}               # the core the runs are pinned to; empty: none
 JP=${JP:-./j-points}
-SRC=${SRC:-j-points.c}
 # the constants swept, in this order, and the factors tried on each
 CONSTS=${CONSTS:-"AND SIZE WORD TEST2 BIT TEST3 EXACT ROW CELL TWORD TTEST RROW RANGE"}
 FACTORS=${FACTORS:-"0.5 0.7 1.4 2"}
@@ -67,26 +77,25 @@ RUNS=(
 )
 
 [ -x "$JP" ] || { echo "tune.sh: $JP is missing; build it first" >&2; exit 1; }
-[ -f "$SRC" ] || { echo "tune.sh: $SRC is missing" >&2; exit 1; }
 
-# The settings to measure against: the defaults of j-points.c, or those of
-# tuning.mk when it is in effect (then the binary was built with them).
-# They are passed explicitly to every run, the baseline included, so that
-# the comparison never depends on what happens to be compiled in.
-declare -A def cur win trial
+TMP=$(mktemp -d) || exit 1
+trap 'rm -rf "$TMP"' EXIT INT TERM
+
+# The settings to measure against: the constants in force in the binary
+# ("j-points -c list": the defaults of j-points.c for its width of the
+# passes, or those of tuning.mk when it is in effect and the binary was
+# built with them).  They are passed explicitly to every run, the baseline
+# included, so that the comparison never depends on what happens to be
+# compiled in.
+declare -A cur win trial
+$JP -c list > "$TMP/list" 2>/dev/null || { echo "tune.sh: $JP -c list failed" >&2; exit 1; }
 for k in $CONSTS; do
-  v=$(sed -n "s/^# *define  *COST_$k  *\([0-9.eE+-]*\).*/\1/p" "$SRC")
-  [ -n "$v" ] || { echo "tune.sh: cannot read COST_$k from $SRC" >&2; exit 1; }
-  def[$k]=$v; cur[$k]=$v
+  v=$(awk -v k="$k" '$1 == k { print $2 }' "$TMP/list")
+  [ -n "$v" ] || { echo "tune.sh: $JP -c list does not name COST_$k" >&2; exit 1; }
+  cur[$k]=$v
 done
 if [ -f tuning.mk ] && [ "$(sed -n 's/^TUNED_FOR *= *//p' tuning.mk)" = "${TUNE_CONFIG:-}" ]
-then
-  for k in $CONSTS; do
-    v=$(sed -n "s/.*-DCOST_$k=\([^ 	]*\).*/\1/p" tuning.mk)
-    [ -n "$v" ] && cur[$k]=$v
-  done
-  echo "tuning.mk is already in effect; measuring against its values"
-fi
+then echo "tuning.mk is already in effect; measuring against its values"; fi
 # the -c argument for an assignment of the constants
 settings() { local -n arr=$1; local s="" k
              for k in $CONSTS; do s+="${s:+,}$k=${arr[$k]}"; done; echo "$s"; }
@@ -96,9 +105,6 @@ echo "measuring against $BASE"
 echo "on $(uname -n), ${TUNE_CONFIG:-no configuration given}, $ROUNDS rounds, up to $PASSES passes"
 
 if [ -n "$CPU" ] && command -v taskset >/dev/null 2>&1; then PIN="taskset -c $CPU"; else PIN=""; fi
-
-TMP=$(mktemp -d) || exit 1
-trap 'rm -rf "$TMP"' EXIT INT TERM
 
 # the reference output of every run, which every candidate must reproduce
 for i in "${!RUNS[@]}"; do
@@ -156,11 +162,14 @@ measure() {
 }
 
 report() { awk '{ printf "    %-14s %+7.1f%%\n", $1, 100*($2-1) }' "$1"; }
-best_of() { awk -v skip="${2:-}" '$1 != skip { if (m == "" || $2 < m) { m = $2; k = $1 } }
-                                  END { print k }' "$1"; }
+# the best candidate of a stage (not the current settings, not the value in
+# place, not the winners), and the ratio a label measured
+best_of() { awk '$1 != "current" && $1 != "unchanged" && $1 != "winners" { if (m == "" || $2 < m) { m = $2; k = $1 } }
+                 END { print k }' "$1"; }
+ratio_of() { awk -v k="$2" '$1 == k { print $2 }' "$1"; }
 
 : > "$TMP/selfs"
-LAST=current; LASTBEST=1
+LASTBEST=1
 for ((pass = 1; pass <= PASSES; pass++)); do
   moved=0
   for k in $CONSTS; do
@@ -182,15 +191,56 @@ for ((pass = 1; pass <= PASSES; pass++)); do
     echo "pass $pass: COST_$k, now ${win[$k]}$( [ -n "$skip" ] && echo ", the other winners so far in place" )"
     measure "$TMP/cand" "$TMP/res"
     report "$TMP/res"
-    awk '$1 == "current" { print $2 }' "$TMP/res" >> "$TMP/selfs"
-    best=$(best_of "$TMP/res" "$skip")
-    case $best in
-      current|unchanged) ;;
-      *) win[$k]=${best#*=}; moved=1 ;;
-    esac
-    LAST=$best; LASTBEST=$(awk -v k="$best" '$1 == k { print $2 }' "$TMP/res")
+    ratio_of "$TMP/res" current >> "$TMP/selfs"
+    # the value in place is the winners' (unchanged), or the current
+    # settings' in a first stage; the best candidate replaces it when it
+    # measured better at all
+    ref=$( [ -n "$skip" ] && echo unchanged || echo current )
+    refratio=$(ratio_of "$TMP/res" $ref)
+    best=$(best_of "$TMP/res")
+    bestratio=$(ratio_of "$TMP/res" "$best")
+    if awk -v b="$bestratio" -v r="$refratio" 'BEGIN { exit !(b < r) }'; then
+      win[$k]=${best#*=}; moved=1
+      echo "    -> COST_$k = ${win[$k]}"
+      LASTBEST=$bestratio
+    else
+      LASTBEST=$refratio
+    fi
   done
   [ $moved = 0 ] && break
+done
+
+# the pruning: each constant that moved goes back to its current value in
+# turn, the moves left so far in place, and stays back unless the set is
+# then more than STEP worse than the full set of winners (measured again in
+# every stage: "winners"; "unchanged" is the set before this step)
+declare -A full
+for k in $CONSTS; do full[$k]=${win[$k]}; done
+for k in $CONSTS; do
+  [ "${win[$k]}" = "${cur[$k]}" ] && continue
+  : > "$TMP/cand"
+  printf 'current\t%s\n' "$BASE" >> "$TMP/cand"
+  printf 'winners\t%s\n' "$(settings full)" >> "$TMP/cand"
+  [ "$(settings win)" != "$(settings full)" ] \
+    && printf 'unchanged\t%s\n' "$(settings win)" >> "$TMP/cand"
+  for kk in $CONSTS; do trial[$kk]=${win[$kk]}; done
+  trial[$k]=${cur[$k]}
+  printf '%s=%s\t%s\n' "$k" "${cur[$k]}" "$(settings trial)" >> "$TMP/cand"
+  echo
+  echo "pruning: COST_$k back from ${win[$k]} to ${cur[$k]}, the moves left so far in place"
+  measure "$TMP/cand" "$TMP/res"
+  report "$TMP/res"
+  ratio_of "$TMP/res" current >> "$TMP/selfs"
+  fullratio=$(ratio_of "$TMP/res" winners)
+  backratio=$(ratio_of "$TMP/res" "$k=${cur[$k]}")
+  if awk -v b="$backratio" -v f="$fullratio" -v s="$STEP" 'BEGIN { exit !(b < f + s) }'; then
+    win[$k]=${cur[$k]}
+    echo "    -> COST_$k back to ${cur[$k]}: within $(awk -v s=$STEP 'BEGIN{printf "%.0f", 100*s}')% of the winners without it"
+    LASTBEST=$backratio
+  else
+    echo "    -> COST_$k stays at ${win[$k]}"
+    LASTBEST=$( [ "$(settings win)" != "$(settings full)" ] && ratio_of "$TMP/res" unchanged || echo "$fullratio" )
+  fi
 done
 
 # how far the current settings measured from themselves, in any stage: all
@@ -199,6 +249,11 @@ done
 SELF=$(awk '{ d = $1 - 1; if (d < 0) d = -d; if (d > w) w = d }
             END { printf "%.5f", 1 + w }' "$TMP/selfs")
 WIN=$(settings win)
+flags=""; moves=""
+for k in $CONSTS; do
+  flags+=" -DCOST_$k=${win[$k]}"
+  [ "${win[$k]}" != "${cur[$k]}" ] && moves+="${moves:+, }COST_$k ${cur[$k]} -> ${win[$k]}"
+done
 echo
 verdict=$(awk -v b="$LASTBEST" -v s="$SELF" -v m="$MARGIN" -v z="$NOISE" \
   'BEGIN { d = s - 1; if (d < 0) d = -d
@@ -212,25 +267,26 @@ case $verdict in
     echo "written.  Try again when it is idle, or with 'ROUNDS=6 make tune'."
     ;;
   keep)
-    echo "Nothing beat the current settings by the required $(awk -v m=$MARGIN 'BEGIN{printf "%.0f", 100*(1-m)}')%"
-    echo "(the best, $LAST, measured $(awk -v b=$LASTBEST 'BEGIN{printf "%+.1f", 100*(b-1)}')%), so they are kept and nothing is written."
+    if [ "$WIN" = "$BASE" ]; then
+      echo "No constant moved: the current settings are kept and nothing is written."
+    else
+      echo "The settings found ($moves) measured $(awk -v b=$LASTBEST 'BEGIN{printf "%.1f", 100*(1-b)}')% better than the"
+      echo "current ones, less than the required $(awk -v m=$MARGIN 'BEGIN{printf "%.0f", 100*(1-m)}')%: kept, nothing written."
+    fi
     ;;
   accept)
-    flags=""
-    for k in $CONSTS; do
-      [ "${win[$k]}" != "${def[$k]}" ] && flags+=" -DCOST_$k=${win[$k]}"
-    done
     cat > tuning.mk <<END
 # Machine-dependent tuning, written by "make tune" on $(date +%Y-%m-%d) on $(uname -n).
 # Delete this file to go back to the values compiled into j-points.c.
 # TUNED_FOR records the configuration it was measured for; the Makefile
 # ignores this file if the configuration has changed since.
 # Measured against $BASE
-# (the constants not listed here keep their values in j-points.c).
+# and moved: $moves
+# (the constants not listed keep their values in j-points.c).
 TUNED_FOR = ${TUNE_CONFIG:-unknown}
 TUNEFLAGS =$flags
 END
-    echo "Wrote tuning.mk:$flags"
+    echo "Wrote tuning.mk with the moves $moves"
     echo "$(awk -v b=$LASTBEST 'BEGIN{printf "%.1f", 100*(1-b)}')% better than the current settings."
     echo "Run 'make' to rebuild with it; delete tuning.mk to discard it."
     ;;

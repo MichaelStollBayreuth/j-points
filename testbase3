@@ -594,7 +594,7 @@ Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
                 [-w bound4] [-c constants] [-1] [-q] [-a]
-# <21 116 171 128 55 12 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
+# <21 116 171 128 55 12 1> <100> <-n> <3> <-M> <6> <-N> <9> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
 
 
 Please acknowledge use of the program in published work.
@@ -608,9 +608,10 @@ about 3.38 words per row, 0.12 cells of the analysis per row.
 0 primes used for the first stage of sieving,
 6 primes used for the first two stages together,
 9 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
 Sieving primes:
  First stage: 
- Second stage: 13, 23, 7, 17, 19, 11
+ Second stage: 13, 7, 23, 17, 19, 11
  Third stage: 59, 61, 41
 Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Max(3) = 0.925926
 
@@ -739,7 +740,7 @@ The polynomial must be squarefree.
 (9, 34, 10, 2176)
 (9, 43, -12, 186)
 (9, 63, 9, 313)
-# <21 116 171 128 55 12 1> <100> <-w> <50> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
+# <21 116 171 128 55 12 1> <100> <-w> <50> <-n> <3> <-M> <6> <-N> <9> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
 
 
 Please acknowledge use of the program in published work.
@@ -754,9 +755,10 @@ about 3.38 words per row, 0.12 cells of the analysis per row.
 0 primes used for the first stage of sieving,
 6 primes used for the first two stages together,
 9 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
 Sieving primes:
  First stage: 
- Second stage: 13, 23, 7, 17, 19, 11
+ Second stage: 13, 7, 23, 17, 19, 11
  Third stage: 59, 61, 41
 Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Max(3) = 0.925926
 
@@ -772,7 +774,7 @@ Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Ma
 2522 candidates survived the third stage.
 
 Found 6 rational points on K lifting to J.
-# <0 -1 2 -1 3 1 1> <100> <-n> <3> <-M> <6> <-N> <9> | grep -v '^This is j-points'
+# <0 -1 2 -1 3 1 1> <100> <-n> <3> <-M> <6> <-N> <9> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
 
 
 Please acknowledge use of the program in published work.
@@ -790,18 +792,19 @@ about 3.87 words per row, 0.12 cells of the analysis per row.
 0 primes used for the first stage of sieving,
 6 primes used for the first two stages together,
 9 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
 Sieving primes:
  First stage: 
- Second stage: 5, 13, 11, 7, 17, 23
- Third stage: 37, 53, 59
-Probabilities: Min(163) = 0.336737, Cut2(23) = 0.370757, Cut3(59) = 0.391700, Max(3) = 0.777778
+ Second stage: 5, 11, 13, 7, 17, 3
+ Third stage: 37, 53, 23
+Probabilities: Min(163) = 0.336737, Cut2(3) = 0.777778, Cut3(23) = 0.370757, Max(3) = 0.777778
 
 (0, 0, 4, -11)
 (0, 1, 0, 0)
 
 7787 candidates survived the first stage,
-3245 candidates survived the second stage,
-153 candidates survived the third stage.
+6645 candidates survived the second stage,
+297 candidates survived the third stage.
 
 Found 2 rational points on K lifting to J.
 # <0 -1 2 -1 3 1 1> <60> <-q> <-a>
@@ -815,7 +818,7 @@ The argument of -c must be NAME=value, or several of them separated
 by commas, with a positive value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
-# <21 116 171 128 55 12 1> <100> <-c> <CELL=1e6,AND=0.45> | grep -v '^This is j-points'
+# <21 116 171 128 55 12 1> <100> <-c> <CELL=1e6,AND=0.45,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
 
 
 Please acknowledge use of the program in published work.
@@ -827,7 +830,7 @@ max. Height = 100
 11 primes used for the first stage of sieving,
 11 primes used for the first two stages together,
 15 primes used for all three stages together.
-Constants of the cost model set by -c: AND=0.45 CELL=1e+06
+Constants of the cost model set by -c: AND=0.45 SIZE=756 TEST2=5.6 CELL=1e+06 TTEST=2
 Sieving primes:
  First stage: 7, 13, 11, 5, 17, 19, 23, 29, 3, 31, 37
  Second stage: 
