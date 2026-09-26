@@ -133,8 +133,8 @@ obtained lift to J(Q).
 
 There are a number of improvements to this basic scheme.
 
-1. We use bits to represent the individual numerators. In this way we can
-   sieve as many numerators as bits fit into a long word (usually 64) at the
+1. We use bits to represent the individual coordinate values. In this way we can
+   sieve as many values as bits fit into a long word (usually 64) at the
    same time, using bit-wise "and" operations: for fixed a and b, a word of
    the bit array over c is ANDed with a word of a table that holds the
    admissible c modulo p (the first stage).
@@ -230,10 +230,11 @@ the program works") -- and the numbers of primes of its three stages.
 | `j-points "$C" 5000 -a`                   | 20 s    |  13395 | rows, 11+25+28 |
 | `j-points "$C" 10000 -a`                  | 137 s   |  19516 | region, 11+25+29 |
 
-The last four rows are the curve with 642 known rational points of
-Müller and Stoll (ANT 10 (2016)), whose Jacobian has many points of small
-height: `C='247747600 -985905640 567207969 2396040466 52485681 -470135160
-82342800'`. With `-a` the bound is on the first three coordinates only, the
+The last four rows are for the
+[curve with 642 known rational points](https://www.mathe2.uni-bayreuth.de/stoll/recordcurve.html),
+whose Jacobian has many points of small height:
+`C='247747600 -985905640 567207969 2396040466 52485681 -470135160 82342800'`.
+With `-a` the bound is on the first three coordinates only, the
 enumeration of the points of bounded canonical height (see the option); its
 runs grow with the cube of the height bound, the plain runs in the tube
 less. The threads (`-t`) divide these times by up to the number of cores, as

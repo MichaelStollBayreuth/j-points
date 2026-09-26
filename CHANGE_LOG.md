@@ -125,11 +125,6 @@ measured; the README describes the current version.
     fourth coordinate separately from the first three, which gives the
     enumeration of the points of bounded modified naive height without a
     post-filter.
-  + The exact check of a surviving triple with gmp, which the three stages
-    and the condition at 2 leave 8-19 thousand of at height 2000 where the
-    first stage alone left millions, takes at most 1.1% of a run that lasts
-    longer than a blink (0.04-0.7% on the `-a` runs), so the pre-filter the
-    plan held in reserve for it was not built.
   + `make tune` measures the constants of the cost model on the machine at
     hand and writes them to tuning.mk (tune.sh, on the model of ratpoints':
     a coordinate descent over thirteen constants on five runs at 2000 that
