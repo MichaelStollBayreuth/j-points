@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-3.0                                                        *
+ * j-points-3.0.1                                                      *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <errno.h>
 #include <pthread.h>
 #include <gmp.h>
 
@@ -43,7 +44,7 @@
 #define DEFAULT_SIZE 10     /* Default value for the -s option */
 
 #define J_POINTS_VERSION \
-  "This is j-points-3.0 by Michael Stoll (2026-09-26).\n\n" \
+  "This is j-points-3.0.1 by Michael Stoll (2026-10-30).\n\n" \
   "Please acknowledge use of the program in published work.\n"
 
 /**************************************************************************
@@ -308,6 +309,7 @@ void init_thread_mpz(void);
 void normalise_curve(void);
 void find_points(void);
 void read_input(long, char *argv[]);
+static int scan_long(const char *, long *);
 char *scan_mpz(char*, MP_INT*);
 static int squarefree(void);
 static char *unescape(const char *);
@@ -358,8 +360,9 @@ int main(int argc, char *argv[])
   begmask = (~0UL)<<((-height) & LONG_MASK);
   endmask = (~0UL)>>((~height) & LONG_MASK);
   s = 2*CEIL(height+1, LONG_LENGTH);
-  array_size <<= 13 - LONG_SHIFT; /* from kbytes to longs */
-  if(s < array_size) array_size = s;
+  /* from kbytes to longs, at most s (a size above s is not shifted, so
+     that the shift cannot overflow) */
+  array_size = (array_size > (s >> (13 - LONG_SHIFT))) ? s : array_size << (13 - LONG_SHIFT);
   /* initialise data for equations */
   kummer_init();
   tube_init();
@@ -417,7 +420,7 @@ void read_input(long argc, char *argv[])
   if(degree < 5) error(5);
   if(degree == 5) mpz_set_si(&coeffs[6], 0);
   if(!squarefree()) error(9);
-  if(sscanf(argv[2], " %ld", &height) != 1 || height < 1 || height > MAX_HEIGHT)
+  if(!scan_long(argv[2], &height) || height < 1 || height > MAX_HEIGHT)
   { error(4); }
   /* Set global variables to their default values */
   sieve_primes1 = -1;  /* automatic determination of this number */
@@ -437,28 +440,28 @@ void read_input(long argc, char *argv[])
       { case 'n': /* number of primes used for first stage of sieving */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes1) != 1) error(6);
+          if(!scan_long(argv[i], &sieve_primes1)) error(6);
           if(sieve_primes1 < 0) sieve_primes1 = 0;
           i++;
           break;
         case 'M': /* number of primes used for the first two stages */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes2) != 1) error(6);
+          if(!scan_long(argv[i], &sieve_primes2)) error(6);
           if(sieve_primes2 < 0) sieve_primes2 = 0;
           i++;
           break;
         case 'N': /* number of primes used for sieving altogether */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes3) != 1) error(6);
+          if(!scan_long(argv[i], &sieve_primes3)) error(6);
           if(sieve_primes3 < 0) sieve_primes3 = 0;
           i++;
           break;
         case 's': /* size of survivors array in kbytes */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &array_size) != 1) error(6);
+          if(!scan_long(argv[i], &array_size)) error(6);
           if(array_size <= 0) error(6);
           i++;
           break;
@@ -471,7 +474,7 @@ void read_input(long argc, char *argv[])
         case 'w': /* the bound on the fourth coordinate */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &dbound) != 1) error(6);
+          if(!scan_long(argv[i], &dbound)) error(6);
           if(dbound < 1) error(6);
           i++;
           break;
@@ -490,7 +493,7 @@ void read_input(long argc, char *argv[])
         case 't': /* the number of threads */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &num_threads) != 1) error(6);
+          if(!scan_long(argv[i], &num_threads)) error(6);
           if(num_threads < 1) error(6);
           i++;
           break;
@@ -504,7 +507,7 @@ void read_input(long argc, char *argv[])
         case 'p': /* set number of primes used */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &num_primes) != 1) error(6);
+          if(!scan_long(argv[i], &num_primes)) error(6);
           if(num_primes <= 0) error(6);
           if(num_primes > NUM_PRIMES) { num_primes = NUM_PRIMES; }
           i++;
@@ -530,6 +533,18 @@ void read_input(long argc, char *argv[])
      none with -a unless -w gave one */
   dbounded = (dbound > 0) || !all_points;
   if(dbound <= 0) { dbound = height; }
+}
+
+/* A long at the start of s, read as sscanf(s, " %ld", v) reads it (white
+   space, a sign, the digits; the rest is ignored); 0 when there is no
+   number, or when it does not fit in a long, where sscanf would give
+   LONG_MAX or LONG_MIN */
+static int scan_long(const char *s, long *v)
+{
+  char *end;
+  errno = 0;
+  *v = strtol(s, &end, 10);
+  return(end != s && errno != ERANGE);
 }
 
 /* Read in a long long long integer. Should really be in the library. */
@@ -1370,6 +1385,14 @@ static void *worker(void *arg)
 static void run_units(long units)
 {
   work_units = units;
+  /* more threads than units would have nothing to do (and the size of
+     their array could overflow) */
+  if(num_threads > units) { num_threads = units; }
+  /* the points found before the units (the point over (0, 0, 1), the
+     double points), which emit collected in the buffer of this thread when
+     there are several threads, come first */
+  if(obuf != NULL)
+  { fputs(obuf, stdout); free(obuf); obuf = NULL; olen = ocap = 0; }
   if(num_threads == 1)
   { long k;
     for(k = 0; k < units; k++)
@@ -1474,6 +1497,9 @@ static mpq_t sturm[7][7];      /* the chain, sturm[i][k] the coefficient of x^k 
 static long sturm_deg[7], sturm_len;
 static mpq_t root_lo[6], root_hi[6];   /* the isolating intervals, in order */
 static long num_roots;
+#define ROOT_BITS 480   /* the roots of the intervals are below 2^ROOT_BITS, so
+                           that row_region's products of a height bound and
+                           two of them stay far below DBL_MAX */
 
 static long sturm_changes(mpq_t x)
 {
@@ -1538,8 +1564,8 @@ static void sturm_isolate(mpq_t lo, mpq_t hi, long nlo, long nhi)
 static void real_roots_init(void)
 {
   mpq_t q, lo, hi;
+  mpz_t B, t, fd;
   long i, k, sgn_inf, nlo, nhi;
-  double B = 0.0;
   for(i = 0; i < 7; i++) { for(k = 0; k < 7; k++) { mpq_init(sturm[i][k]); } }
   for(i = 0; i < 6; i++) { mpq_init(root_lo[i]); mpq_init(root_hi[i]); }
   mpq_init(q); mpq_init(lo); mpq_init(hi);
@@ -1574,39 +1600,47 @@ static void real_roots_init(void)
     sturm_deg[i2] = d;
     sturm_len++;
   }
-  /* the Cauchy bound: every root is below 1 + max |f_k / f_d| */
+  /* the Cauchy bound, in integers: every root is below 1 + max |f_k / f_d|,
+     so inside (-B, B) for B = 2 + max ceil(|f_k| / |f_d|) */
+  mpz_init(B); mpz_init(t); mpz_init(fd);
+  mpz_abs(fd, &coeffs[degree]);
   for(k = 0; k < degree; k++)
-  { double r = fabs(mpz_get_d(&coeffs[k]) / mpz_get_d(&coeffs[degree]));
-    if(r > B) { B = r; }
+  { mpz_abs(t, &coeffs[k]); mpz_cdiv_q(t, t, fd);
+    if(mpz_cmp(t, B) > 0) { mpz_set(B, t); }
   }
-  B = ceil(B) + 2.0;
-  mpq_set_d(lo, -B); mpq_set_d(hi, B);
-  nlo = sturm_changes(lo); nhi = sturm_changes(hi);
-  num_roots = 0;
-  sturm_isolate(lo, hi, nlo, nhi);
-  /* the sign of f beyond the last root, and on each interval down from
-     there, alternating; a negative interval is recorded */
-  sgn_inf = mpz_sgn(&coeffs[degree]);
+  mpz_add_ui(B, B, 2);
   num_neg = 0;
-  for(i = num_roots; i >= 0; i--)
-  { long s = ((num_roots - i) % 2 == 0) ? sgn_inf : -sgn_inf;   /* on (root i-1, root i) */
-    if(s < 0)
-    { double glo, ghi, slo, shi;
-      if(i == 0) { glo = slo = -HUGE_VAL; }
-      else
-      { glo = nextafter(mpq_get_d(root_lo[i-1]), -HUGE_VAL);
-        shi = 0.0; slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL);
+  /* roots beyond 2^ROOT_BITS could overflow the doubles of row_region:
+     then no interval is recorded, and the region is every row whole */
+  if(mpz_sizeinbase(B, 2) <= ROOT_BITS)
+  { mpq_set_z(hi, B); mpq_neg(lo, hi);
+    nlo = sturm_changes(lo); nhi = sturm_changes(hi);
+    num_roots = 0;
+    sturm_isolate(lo, hi, nlo, nhi);
+    /* the sign of f beyond the last root, and on each interval down from
+       there, alternating; a negative interval is recorded */
+    sgn_inf = mpz_sgn(&coeffs[degree]);
+    for(i = num_roots; i >= 0; i--)
+    { long s = ((num_roots - i) % 2 == 0) ? sgn_inf : -sgn_inf;   /* on (root i-1, root i) */
+      if(s < 0)
+      { double glo, ghi, slo, shi;
+        if(i == 0) { glo = slo = -HUGE_VAL; }
+        else
+        { glo = nextafter(mpq_get_d(root_lo[i-1]), -HUGE_VAL);
+          slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL);
+        }
+        if(i == num_roots) { ghi = shi = HUGE_VAL; }
+        else
+        { ghi = nextafter(mpq_get_d(root_hi[i]), HUGE_VAL);
+          shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL);
+        }
+        neg_grown_lo[num_neg] = glo; neg_grown_hi[num_neg] = ghi;
+        neg_shrunk_lo[num_neg] = slo; neg_shrunk_hi[num_neg] = shi;
+        num_neg++;
       }
-      if(i == num_roots) { ghi = shi = HUGE_VAL; }
-      else
-      { ghi = nextafter(mpq_get_d(root_hi[i]), HUGE_VAL);
-        shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL);
-      }
-      neg_grown_lo[num_neg] = glo; neg_grown_hi[num_neg] = ghi;
-      neg_shrunk_lo[num_neg] = slo; neg_shrunk_hi[num_neg] = shi;
-      num_neg++;
     }
   }
+  mpz_clear(B); mpz_clear(t); mpz_clear(fd);
   mpq_clear(q); mpq_clear(lo); mpq_clear(hi);
   for(i = 0; i < 7; i++) { for(k = 0; k < 7; k++) { mpq_clear(sturm[i][k]); } }
   for(i = 0; i < 6; i++) { mpq_clear(root_lo[i]); mpq_clear(root_hi[i]); }
@@ -1999,16 +2033,20 @@ int check_lifts_mpz(MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
 }
 
 void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
-{ /* print the four coordinates with the user's format, in which each %ld
-     becomes the %Zd of gmp_printf (the two are of the same length) */
-  long l = strlen(format), i, j;
+{ /* print the four coordinates with the user's format, in which each
+     conversion %ld, with its flags, width and precision, becomes the %Zd
+     of gmp_printf (of the same length), and %% stays */
+  size_t l = strlen(format), i, k;
   char *fmt = malloc(l + 1);
-  for(i = 0, j = 0; i < l; i++, j++)
-  { fmt[j] = format[i];
-    if(format[i] == '%' && format[i+1] == 'l' && format[i+2] == 'd')
-    { fmt[++j] = 'Z'; fmt[++j] = 'd'; i += 2; }
+  if(fmt == NULL) { error(7); }
+  memcpy(fmt, format, l + 1);
+  for(i = 0; i < l; i++)
+  { if(fmt[i] != '%') { continue; }
+    if(fmt[i+1] == '%') { i++; continue; }
+    for(k = i + 1; fmt[k] != 0 && strchr("-+ #'0123456789.", fmt[k]) != NULL; k++) ;
+    if(fmt[k] == 'l' && fmt[k+1] == 'd') { fmt[k] = 'Z'; }
+    i = k;
   }
-  fmt[j] = 0;
   /* the point of the curve given, its first nonzero coordinate positive */
   if(reversed) { MP_INT *x = a; a = c; c = x; }
   if(negated) { mpz_neg(b, b); }
@@ -2344,9 +2382,9 @@ void message(long n, long total)
   fflush(stdout);
 }
 
-void error(long errno)
+void error(long n)
 {
-  switch(errno)
+  switch(n)
   { case 1:
       printf("\nUnusual size of `unsigned long' type: %d\n\n",
              (int)LONG_LENGTH);
@@ -2376,5 +2414,5 @@ void error(long errno)
       break;
   }
   fflush(stdout);
-  exit(errno);
+  exit(n);
 }

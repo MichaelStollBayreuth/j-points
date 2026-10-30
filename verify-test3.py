@@ -42,6 +42,16 @@ for line in text:
     elif blocks:
         blocks[-1]['out'].append(line)
 
+def format_pattern(fmt):
+    # a %ld conversion, with its flags, width and precision, reads a number
+    # (a sign of + included) padded with blanks; %% is a percent sign
+    out = []
+    for part in re.split(r"(%%|%[-+ #'0-9.]*ld)", fmt):
+        if part == '%%': out.append(re.escape('%'))
+        elif part.startswith('%') and part.endswith('ld'): out.append(r' *([-+]?\d+) *')
+        else: out.append(re.escape(part))
+    return re.compile(''.join(out))
+
 magma_jobs = {}    # (coeffs, h) -> job number: brute force, all points above the triples
 for b in blocks:
     a = b['args']
@@ -60,9 +70,9 @@ for b in blocks:
     b['w'] = int(opts[opts.index('-w') + 1]) if '-w' in opts else None
     fmt = opts[opts.index('-f') + 1] if '-f' in opts else None
     pat = re.compile(r'\((-?\d+), (-?\d+), (-?\d+), (-?\d+)\)' if fmt is None
-                     else re.escape(fmt).replace(r'%ld', r'(-?\d+)'))
+                     else format_pattern(fmt))
     found = pat.findall('\n'.join(b['out']))
-    b['found'] = set('(%s, %s, %s, %s)' % tuple(p) for p in found)
+    b['found'] = set('(%s, %s, %s, %s)' % tuple(str(int(x)) for x in p) for p in found)
     b['nfound'] = len(found)
     b['check'] = True
     if b['h'] <= SMALL:

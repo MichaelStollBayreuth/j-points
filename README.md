@@ -100,7 +100,8 @@ The optional arguments, which can be given in any order, are these.
   coordinate is divided by the maximum ||f|| of the |a_i|: the points with
   modified height at most log N are exactly those of `-w W` with h = N and
   W = ||f|| N. Together with `-a`, the bound on the first three coordinates
-  is that of `-a` and the fourth is bounded by bound4.
+  is that of `-a` and the fourth is bounded by bound4. On a machine with
+  64-bit longs, bound4 can be at most 2^63 - 1.
 + `-c constants`: constants of the cost model that chooses the sieving
   primes, their stages and the mode of the sieve, as `NAME=value`, several
   separated by commas, the names those of the `COST_` constants of j-points.c

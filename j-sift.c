@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-3.0                                                        *
+ * j-points-3.0.1                                                      *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -420,6 +420,7 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    ranges of words of the real region. */
 
 #define TUBE_EPS 1.5e-5   /* each coefficient with a margin of 1e-6 */
+#define TUBE_BIG 1.0e300  /* the scale beyond which nothing is decided */
 #define TUBE_ROWS 64      /* rows of a leaf cell (16 to 128 measured much the same) */
 #define L 5               /* the row length of a coefficient array (degree at most 4) */
 #define NC (L*L)
@@ -430,8 +431,10 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    W^2 |k2|, the scale of the errors */
 static _Thread_local double K0[NC], K1[NC], K2[NC], KA[NC];
 static _Thread_local long tube_a;   /* the current a */
+static _Thread_local int tube_ok;   /* whether the analysis may decide, see below */
 static long tube_ncells;
 
+static inline double tube_eval(double *, long, double, double);
 static void tube_a_init(long a)
 {
   double A = (double)a, A2 = A*A, A3 = A2*A, A4 = A3*A;
@@ -450,6 +453,12 @@ static void tube_a_init(long a)
   K2 P(2,0) = 1.0; K2 P(0,1) = -4.0*A;
   for(i = 0; i < NC; i++)
   { KA[i] = fabs(K0[i]) + th*fabs(K1[i]) + th2*fabs(K2[i]); }
+  /* every value the analysis of a cell computes for this a (the shifted
+     coefficients, the sums of poly_sign, the margins) is at most 2^8 times
+     the absolute polynomial at (h, h + LONG_LENGTH), beyond every cell:
+     below TUBE_BIG none of them can overflow; beyond it, or when a
+     coefficient is not finite, tube_cell decides nothing */
+  tube_ok = (tube_eval(KA, 4, (double)height, (double)(height + LONG_LENGTH)) < TUBE_BIG);
   tube_a = a;
   return;
 }
@@ -467,6 +476,8 @@ static void tube_a_init(long a)
    is excluded only when it is inside for certain; a word is excluded
    when all its c are. */
 #define ROW_RANGES 12   /* at most 2 * 4 exclusions leave 9 ranges */
+#define ROW_BEYOND 4.0e9   /* beyond every c of a row: MAX_HEIGHT + LONG_LENGTH
+                              is below it */
 static long row_region(long a, long b, long *lo, long *hi)
 {
   double xlo[8], xhi[8];   /* the excluded intervals of c, open */
@@ -516,14 +527,19 @@ static long row_region(long a, long b, long *lo, long *hi)
   /* the words left: w is the first word not yet placed */
   for(i = 0; i < n; i++)
   { long wl, wh;   /* the words wholly inside (xlo, xhi): [wl, wh) */
+    /* an interval beyond the row, or too short to hold a word, excludes
+       nothing */
+    if(xlo[i] >= ROW_BEYOND || xhi[i] <= -ROW_BEYOND) { continue; }
     if(xhi[i] - xlo[i] < (double)LONG_LENGTH) { continue; }
-    /* the first c > xlo is at most (long) xlo + 2, the last c < xhi at
-       least (long) xhi - 2 (the cast truncates towards 0; a c more or
-       less at the ends is kept, which is safe); the words wholly inside
-       those c, by the shifts, which round down */
-    { if(xlo[i] < -3.0e9) { wl = w_low_all; }
+    /* an end beyond the row stands for the row's end; otherwise the first
+       c > xlo is at most (long) xlo + 2, the last c < xhi at least (long)
+       xhi - 2 (the cast truncates towards 0, and a long holds the end,
+       which is below ROW_BEYOND; a c more or less at the ends is kept,
+       which is safe); the words wholly inside those c, by the shifts,
+       which round down */
+    { if(xlo[i] <= -ROW_BEYOND) { wl = w_low_all; }
       else { long c = (long)xlo[i] + 2; wl = (c + LONG_MASK) >> LONG_SHIFT; }
-      if(xhi[i] > 3.0e9) { wh = w_high_all; }
+      if(xhi[i] >= ROW_BEYOND) { wh = w_high_all; }
       else { long c = (long)xhi[i] - 2; wh = (c + 1) >> LONG_SHIFT; }
     }
     if(wl < w) { wl = w; }
@@ -623,6 +639,11 @@ static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
   int s2, sp, sm, inside;
   long j, k;
   tube_ncells++;
+  if(!tube_ok)
+  { long b;   /* nothing decided (see tube_a_init): the cell whole */
+    for(b = b_lo; b <= b_hi; b++) { tube_emit(b, i_lo, i_hi); }
+    return;
+  }
   /* the products rb^j rc^k, the same for cells of one size */
   if(rb != last_rb || rc != last_rc)
   { double rbj;
@@ -789,11 +810,15 @@ static int sift_range(long, long, long, long, long, bit_array, long);
    model says so) or each range by the passes (the region) */
 int sift_bands(long a, long b_first, long m)
 {
-  long b_lo;
+  /* a band holds at most TUBE_BAND consecutive values of b, and its
+     length is a multiple of the step m, so that every band starts on a
+     row of the walk (a band of one row when m exceeds TUBE_BAND) */
+  long len = (m > TUBE_BAND) ? 1 : TUBE_BAND - TUBE_BAND % m;
+  long step = (m > TUBE_BAND) ? m : len, b_lo;
   int tube = (sieve_mode == 1);
   tube_a_init(a);
-  for(b_lo = b_first; b_lo <= height; b_lo += TUBE_BAND)
-  { long b_hi = b_lo + TUBE_BAND - 1, b, k;
+  for(b_lo = b_first; b_lo <= height; b_lo += step)
+  { long b_hi = b_lo + len - 1, b, k;
     if(b_hi > height) { b_hi = height; }
     band_b0 = b_lo;
     if(tube)

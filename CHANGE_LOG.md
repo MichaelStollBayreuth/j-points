@@ -150,3 +150,32 @@ measured; the README describes the current version.
     with eight and 11.5x with 24 threads on a 16-core i7 with eight
     performance and eight efficiency cores; plain runs in the tube scale
     less (5-8x there), the sieve of whole rows and of the real region alike.
++ 30-Oct-2026, version 3.0.1: an audit of the code for what a proof of its
+  correctness in Lean would need, done before the program was modelled
+  there. Fixed:
+  + In the tube and the real region, the bands of 4096 rows ignored the step
+    of the rows when a sieving prime modulo which f6 is not a square divides
+    the first coordinate, so that from height 2048 on rows were skipped
+    that can hold points (3% of the rows of some test curves at 2500 with
+    `-a`; no point of the test suites lay in them).
+  + The real region cast the ends of the excluded ranges of c to longs even
+    when they lay far beyond the row, and then excluded whole rows: a curve
+    with a real root of f beyond about 3e9 next to an interval where f is
+    negative lost points with `-a`. An end beyond the row was also taken for
+    3e9, below the largest height bound.
+  + The Cauchy bound of the isolation of the real roots of f was computed in
+    doubles and could fall below a root for coefficients beyond 2^53; the
+    signs of f were then taken the wrong way round and the real region lost
+    points. It is now computed in integers, and for roots beyond 2^480 the
+    real region is the whole box.
+  + The analysis of the tube could overflow for coefficients beyond about
+    10^130 and then decide a cell on an infinity; it decides nothing there
+    now.
+  + With more than two threads the point over (0 : 0 : 1) and the double
+    points could be printed after the points of later units; they come
+    first again, as with one thread. The number of threads is at most the
+    number of units of work.
+  + A number on the command line that does not fit a long is refused (`-w`
+    took it as 2^63 - 1); `-s` with a size of 2^56 KB or more crashed; and
+    with `-a`, a `-f` format whose conversions have flags or a width printed
+    the coordinates beyond the machine word as garbage.
