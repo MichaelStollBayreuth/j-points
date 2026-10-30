@@ -1,4 +1,4 @@
-#   j-points-3.0
+#   j-points-3.0.1
 #    - A program to find rational points on Jacobians of genus 2 curves
 #   Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll
 #
@@ -67,7 +67,7 @@ TUNEFLAGS =
 endif
 endif
 
-VERSION = 3.0
+VERSION = 3.0.1
 
 # Files that make up the distribution
 DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md CHANGE_LOG.md gpl-2.0.txt \
