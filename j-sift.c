@@ -467,6 +467,8 @@ static void tube_a_init(long a)
    is excluded only when it is inside for certain; a word is excluded
    when all its c are. */
 #define ROW_RANGES 12   /* at most 2 * 4 exclusions leave 9 ranges */
+#define ROW_BEYOND 4.0e9   /* beyond every c of a row: MAX_HEIGHT + LONG_LENGTH
+                              is below it */
 static long row_region(long a, long b, long *lo, long *hi)
 {
   double xlo[8], xhi[8];   /* the excluded intervals of c, open */
@@ -516,14 +518,19 @@ static long row_region(long a, long b, long *lo, long *hi)
   /* the words left: w is the first word not yet placed */
   for(i = 0; i < n; i++)
   { long wl, wh;   /* the words wholly inside (xlo, xhi): [wl, wh) */
+    /* an interval beyond the row, or too short to hold a word, excludes
+       nothing */
+    if(xlo[i] >= ROW_BEYOND || xhi[i] <= -ROW_BEYOND) { continue; }
     if(xhi[i] - xlo[i] < (double)LONG_LENGTH) { continue; }
-    /* the first c > xlo is at most (long) xlo + 2, the last c < xhi at
-       least (long) xhi - 2 (the cast truncates towards 0; a c more or
-       less at the ends is kept, which is safe); the words wholly inside
-       those c, by the shifts, which round down */
-    { if(xlo[i] < -3.0e9) { wl = w_low_all; }
+    /* an end beyond the row stands for the row's end; otherwise the first
+       c > xlo is at most (long) xlo + 2, the last c < xhi at least (long)
+       xhi - 2 (the cast truncates towards 0, and a long holds the end,
+       which is below ROW_BEYOND; a c more or less at the ends is kept,
+       which is safe); the words wholly inside those c, by the shifts,
+       which round down */
+    { if(xlo[i] <= -ROW_BEYOND) { wl = w_low_all; }
       else { long c = (long)xlo[i] + 2; wl = (c + LONG_MASK) >> LONG_SHIFT; }
-      if(xhi[i] > 3.0e9) { wh = w_high_all; }
+      if(xhi[i] >= ROW_BEYOND) { wh = w_high_all; }
       else { long c = (long)xhi[i] - 2; wh = (c + 1) >> LONG_SHIFT; }
     }
     if(wl < w) { wl = w; }
