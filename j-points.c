@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <errno.h>
 #include <pthread.h>
 #include <gmp.h>
 
@@ -308,6 +309,7 @@ void init_thread_mpz(void);
 void normalise_curve(void);
 void find_points(void);
 void read_input(long, char *argv[]);
+static int scan_long(const char *, long *);
 char *scan_mpz(char*, MP_INT*);
 static int squarefree(void);
 static char *unescape(const char *);
@@ -358,8 +360,9 @@ int main(int argc, char *argv[])
   begmask = (~0UL)<<((-height) & LONG_MASK);
   endmask = (~0UL)>>((~height) & LONG_MASK);
   s = 2*CEIL(height+1, LONG_LENGTH);
-  array_size <<= 13 - LONG_SHIFT; /* from kbytes to longs */
-  if(s < array_size) array_size = s;
+  /* from kbytes to longs, at most s (a size above s is not shifted, so
+     that the shift cannot overflow) */
+  array_size = (array_size > (s >> (13 - LONG_SHIFT))) ? s : array_size << (13 - LONG_SHIFT);
   /* initialise data for equations */
   kummer_init();
   tube_init();
@@ -417,7 +420,7 @@ void read_input(long argc, char *argv[])
   if(degree < 5) error(5);
   if(degree == 5) mpz_set_si(&coeffs[6], 0);
   if(!squarefree()) error(9);
-  if(sscanf(argv[2], " %ld", &height) != 1 || height < 1 || height > MAX_HEIGHT)
+  if(!scan_long(argv[2], &height) || height < 1 || height > MAX_HEIGHT)
   { error(4); }
   /* Set global variables to their default values */
   sieve_primes1 = -1;  /* automatic determination of this number */
@@ -437,28 +440,28 @@ void read_input(long argc, char *argv[])
       { case 'n': /* number of primes used for first stage of sieving */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes1) != 1) error(6);
+          if(!scan_long(argv[i], &sieve_primes1)) error(6);
           if(sieve_primes1 < 0) sieve_primes1 = 0;
           i++;
           break;
         case 'M': /* number of primes used for the first two stages */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes2) != 1) error(6);
+          if(!scan_long(argv[i], &sieve_primes2)) error(6);
           if(sieve_primes2 < 0) sieve_primes2 = 0;
           i++;
           break;
         case 'N': /* number of primes used for sieving altogether */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &sieve_primes3) != 1) error(6);
+          if(!scan_long(argv[i], &sieve_primes3)) error(6);
           if(sieve_primes3 < 0) sieve_primes3 = 0;
           i++;
           break;
         case 's': /* size of survivors array in kbytes */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &array_size) != 1) error(6);
+          if(!scan_long(argv[i], &array_size)) error(6);
           if(array_size <= 0) error(6);
           i++;
           break;
@@ -471,7 +474,7 @@ void read_input(long argc, char *argv[])
         case 'w': /* the bound on the fourth coordinate */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &dbound) != 1) error(6);
+          if(!scan_long(argv[i], &dbound)) error(6);
           if(dbound < 1) error(6);
           i++;
           break;
@@ -490,7 +493,7 @@ void read_input(long argc, char *argv[])
         case 't': /* the number of threads */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &num_threads) != 1) error(6);
+          if(!scan_long(argv[i], &num_threads)) error(6);
           if(num_threads < 1) error(6);
           i++;
           break;
@@ -504,7 +507,7 @@ void read_input(long argc, char *argv[])
         case 'p': /* set number of primes used */
           if(argc == i) error(6);
           i++;
-          if(sscanf(argv[i], " %ld", &num_primes) != 1) error(6);
+          if(!scan_long(argv[i], &num_primes)) error(6);
           if(num_primes <= 0) error(6);
           if(num_primes > NUM_PRIMES) { num_primes = NUM_PRIMES; }
           i++;
@@ -530,6 +533,18 @@ void read_input(long argc, char *argv[])
      none with -a unless -w gave one */
   dbounded = (dbound > 0) || !all_points;
   if(dbound <= 0) { dbound = height; }
+}
+
+/* A long at the start of s, read as sscanf(s, " %ld", v) reads it (white
+   space, a sign, the digits; the rest is ignored); 0 when there is no
+   number, or when it does not fit in a long, where sscanf would give
+   LONG_MAX or LONG_MIN */
+static int scan_long(const char *s, long *v)
+{
+  char *end;
+  errno = 0;
+  *v = strtol(s, &end, 10);
+  return(end != s && errno != ERANGE);
 }
 
 /* Read in a long long long integer. Should really be in the library. */
@@ -2018,16 +2033,20 @@ int check_lifts_mpz(MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
 }
 
 void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
-{ /* print the four coordinates with the user's format, in which each %ld
-     becomes the %Zd of gmp_printf (the two are of the same length) */
-  long l = strlen(format), i, j;
+{ /* print the four coordinates with the user's format, in which each
+     conversion %ld, with its flags, width and precision, becomes the %Zd
+     of gmp_printf (of the same length), and %% stays */
+  size_t l = strlen(format), i, k;
   char *fmt = malloc(l + 1);
-  for(i = 0, j = 0; i < l; i++, j++)
-  { fmt[j] = format[i];
-    if(format[i] == '%' && format[i+1] == 'l' && format[i+2] == 'd')
-    { fmt[++j] = 'Z'; fmt[++j] = 'd'; i += 2; }
+  if(fmt == NULL) { error(7); }
+  memcpy(fmt, format, l + 1);
+  for(i = 0; i < l; i++)
+  { if(fmt[i] != '%') { continue; }
+    if(fmt[i+1] == '%') { i++; continue; }
+    for(k = i + 1; fmt[k] != 0 && strchr("-+ #'0123456789.", fmt[k]) != NULL; k++) ;
+    if(fmt[k] == 'l' && fmt[k+1] == 'd') { fmt[k] = 'Z'; }
+    i = k;
   }
-  fmt[j] = 0;
   /* the point of the curve given, its first nonzero coordinate positive */
   if(reversed) { MP_INT *x = a; a = c; c = x; }
   if(negated) { mpz_neg(b, b); }
@@ -2363,9 +2382,9 @@ void message(long n, long total)
   fflush(stdout);
 }
 
-void error(long errno)
+void error(long n)
 {
-  switch(errno)
+  switch(n)
   { case 1:
       printf("\nUnusual size of `unsigned long' type: %d\n\n",
              (int)LONG_LENGTH);
@@ -2395,5 +2414,5 @@ void error(long errno)
       break;
   }
   fflush(stdout);
-  exit(errno);
+  exit(n);
 }
