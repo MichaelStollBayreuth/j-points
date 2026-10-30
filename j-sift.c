@@ -789,11 +789,15 @@ static int sift_range(long, long, long, long, long, bit_array, long);
    model says so) or each range by the passes (the region) */
 int sift_bands(long a, long b_first, long m)
 {
-  long b_lo;
+  /* a band holds at most TUBE_BAND consecutive values of b, and its
+     length is a multiple of the step m, so that every band starts on a
+     row of the walk (a band of one row when m exceeds TUBE_BAND) */
+  long len = (m > TUBE_BAND) ? 1 : TUBE_BAND - TUBE_BAND % m;
+  long step = (m > TUBE_BAND) ? m : len, b_lo;
   int tube = (sieve_mode == 1);
   tube_a_init(a);
-  for(b_lo = b_first; b_lo <= height; b_lo += TUBE_BAND)
-  { long b_hi = b_lo + TUBE_BAND - 1, b, k;
+  for(b_lo = b_first; b_lo <= height; b_lo += step)
+  { long b_hi = b_lo + len - 1, b, k;
     if(b_hi > height) { b_hi = height; }
     band_b0 = b_lo;
     if(tube)
