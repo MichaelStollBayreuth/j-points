@@ -1474,6 +1474,9 @@ static mpq_t sturm[7][7];      /* the chain, sturm[i][k] the coefficient of x^k 
 static long sturm_deg[7], sturm_len;
 static mpq_t root_lo[6], root_hi[6];   /* the isolating intervals, in order */
 static long num_roots;
+#define ROOT_BITS 480   /* the roots of the intervals are below 2^ROOT_BITS, so
+                           that row_region's products of a height bound and
+                           two of them stay far below DBL_MAX */
 
 static long sturm_changes(mpq_t x)
 {
@@ -1538,8 +1541,8 @@ static void sturm_isolate(mpq_t lo, mpq_t hi, long nlo, long nhi)
 static void real_roots_init(void)
 {
   mpq_t q, lo, hi;
+  mpz_t B, t, fd;
   long i, k, sgn_inf, nlo, nhi;
-  double B = 0.0;
   for(i = 0; i < 7; i++) { for(k = 0; k < 7; k++) { mpq_init(sturm[i][k]); } }
   for(i = 0; i < 6; i++) { mpq_init(root_lo[i]); mpq_init(root_hi[i]); }
   mpq_init(q); mpq_init(lo); mpq_init(hi);
@@ -1574,39 +1577,47 @@ static void real_roots_init(void)
     sturm_deg[i2] = d;
     sturm_len++;
   }
-  /* the Cauchy bound: every root is below 1 + max |f_k / f_d| */
+  /* the Cauchy bound, in integers: every root is below 1 + max |f_k / f_d|,
+     so inside (-B, B) for B = 2 + max ceil(|f_k| / |f_d|) */
+  mpz_init(B); mpz_init(t); mpz_init(fd);
+  mpz_abs(fd, &coeffs[degree]);
   for(k = 0; k < degree; k++)
-  { double r = fabs(mpz_get_d(&coeffs[k]) / mpz_get_d(&coeffs[degree]));
-    if(r > B) { B = r; }
+  { mpz_abs(t, &coeffs[k]); mpz_cdiv_q(t, t, fd);
+    if(mpz_cmp(t, B) > 0) { mpz_set(B, t); }
   }
-  B = ceil(B) + 2.0;
-  mpq_set_d(lo, -B); mpq_set_d(hi, B);
-  nlo = sturm_changes(lo); nhi = sturm_changes(hi);
-  num_roots = 0;
-  sturm_isolate(lo, hi, nlo, nhi);
-  /* the sign of f beyond the last root, and on each interval down from
-     there, alternating; a negative interval is recorded */
-  sgn_inf = mpz_sgn(&coeffs[degree]);
+  mpz_add_ui(B, B, 2);
   num_neg = 0;
-  for(i = num_roots; i >= 0; i--)
-  { long s = ((num_roots - i) % 2 == 0) ? sgn_inf : -sgn_inf;   /* on (root i-1, root i) */
-    if(s < 0)
-    { double glo, ghi, slo, shi;
-      if(i == 0) { glo = slo = -HUGE_VAL; }
-      else
-      { glo = nextafter(mpq_get_d(root_lo[i-1]), -HUGE_VAL);
-        shi = 0.0; slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL);
+  /* roots beyond 2^ROOT_BITS could overflow the doubles of row_region:
+     then no interval is recorded, and the region is every row whole */
+  if(mpz_sizeinbase(B, 2) <= ROOT_BITS)
+  { mpq_set_z(hi, B); mpq_neg(lo, hi);
+    nlo = sturm_changes(lo); nhi = sturm_changes(hi);
+    num_roots = 0;
+    sturm_isolate(lo, hi, nlo, nhi);
+    /* the sign of f beyond the last root, and on each interval down from
+       there, alternating; a negative interval is recorded */
+    sgn_inf = mpz_sgn(&coeffs[degree]);
+    for(i = num_roots; i >= 0; i--)
+    { long s = ((num_roots - i) % 2 == 0) ? sgn_inf : -sgn_inf;   /* on (root i-1, root i) */
+      if(s < 0)
+      { double glo, ghi, slo, shi;
+        if(i == 0) { glo = slo = -HUGE_VAL; }
+        else
+        { glo = nextafter(mpq_get_d(root_lo[i-1]), -HUGE_VAL);
+          slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL);
+        }
+        if(i == num_roots) { ghi = shi = HUGE_VAL; }
+        else
+        { ghi = nextafter(mpq_get_d(root_hi[i]), HUGE_VAL);
+          shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL);
+        }
+        neg_grown_lo[num_neg] = glo; neg_grown_hi[num_neg] = ghi;
+        neg_shrunk_lo[num_neg] = slo; neg_shrunk_hi[num_neg] = shi;
+        num_neg++;
       }
-      if(i == num_roots) { ghi = shi = HUGE_VAL; }
-      else
-      { ghi = nextafter(mpq_get_d(root_hi[i]), HUGE_VAL);
-        shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL);
-      }
-      neg_grown_lo[num_neg] = glo; neg_grown_hi[num_neg] = ghi;
-      neg_shrunk_lo[num_neg] = slo; neg_shrunk_hi[num_neg] = shi;
-      num_neg++;
     }
   }
+  mpz_clear(B); mpz_clear(t); mpz_clear(fd);
   mpq_clear(q); mpq_clear(lo); mpq_clear(hi);
   for(i = 0; i < 7; i++) { for(k = 0; k < 7; k++) { mpq_clear(sturm[i][k]); } }
   for(i = 0; i < 6; i++) { mpq_clear(root_lo[i]); mpq_clear(root_hi[i]); }
