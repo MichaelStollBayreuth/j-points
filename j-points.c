@@ -1370,6 +1370,14 @@ static void *worker(void *arg)
 static void run_units(long units)
 {
   work_units = units;
+  /* more threads than units would have nothing to do (and the size of
+     their array could overflow) */
+  if(num_threads > units) { num_threads = units; }
+  /* the points found before the units (the point over (0, 0, 1), the
+     double points), which emit collected in the buffer of this thread when
+     there are several threads, come first */
+  if(obuf != NULL)
+  { fputs(obuf, stdout); free(obuf); obuf = NULL; olen = ocap = 0; }
   if(num_threads == 1)
   { long k;
     for(k = 0; k < units; k++)
