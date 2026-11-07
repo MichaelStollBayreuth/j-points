@@ -2414,7 +2414,8 @@ void error(long n)
       printf("\nUnusual size of `unsigned long' type: %d\n\n",
              (int)LONG_LENGTH);
       break;
-    case 3: printf("\nToo many coefficients.\n\n"); break;
+    case 3: printf("\nThe polynomial must be given by at most seven integers, separated\n");
+            printf("by blanks.\n\n"); break;
     case 4: printf("\nIncorrect height argument.\n");
             printf("  Height must be in [1, %ld].\n\n", MAX_SEARCH_HEIGHT); break;
     case 5: printf("\nThe polynomial must have degree at least 5.\n\n"); break;
@@ -2423,7 +2424,7 @@ void error(long n)
     case 9: printf("\nThe polynomial must be squarefree.\n\n"); break;
     case 10: { size_t k;
                printf("\nThe argument of -c must be NAME=value, or several of them separated\n");
-               printf("by commas, with a positive value and one of the names\n");
+               printf("by commas, with a positive normal value and one of the names\n");
                for(k = 0; k < NUM_COSTS; k++)
                { printf(" %s", cost_names[k].name); }
                printf(".\n\n");

@@ -546,7 +546,8 @@ The polynomial must have degree at least 5.
 
 # <1 2 3 4 5 6 7 8> <100>
 
-Too many coefficients.
+The polynomial must be given by at most seven integers, separated
+by blanks.
 
 # <1 2 3 4 5 6 7> <0>
 
@@ -815,7 +816,7 @@ Found 2 rational points on K lifting to J.
 # <21 116 171 128 55 12 1> <100> <-c> <FOO=1>
 
 The argument of -c must be NAME=value, or several of them separated
-by commas, with a positive value and one of the names
+by commas, with a positive normal value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
 # <21 116 171 128 55 12 1> <100> <-c> <CELL=1e6,AND=0.45,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
@@ -1110,40 +1111,42 @@ Usage: j-points 'a_0 a_1 ... a_d' max_height
 # <21 116 171 128 55 12 1> <100> <-c> <AND=inf>
 
 The argument of -c must be NAME=value, or several of them separated
-by commas, with a positive value and one of the names
+by commas, with a positive normal value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
 # <21 116 171 128 55 12 1> <100> <-c> <AND=1e999>
 
 The argument of -c must be NAME=value, or several of them separated
-by commas, with a positive value and one of the names
+by commas, with a positive normal value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
 # <21 116 171 128 55 12 1> <100> <-c> <AND=1e-320>
 
 The argument of -c must be NAME=value, or several of them separated
-by commas, with a positive value and one of the names
+by commas, with a positive normal value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
 # <21 116 171 128 55 12 1> <100> <-c> <>
 
 The argument of -c must be NAME=value, or several of them separated
-by commas, with a positive value and one of the names
+by commas, with a positive normal value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
 # <21 116 171 128 55 12 1> <100> <-c> <AND=0.63,>
 
 The argument of -c must be NAME=value, or several of them separated
-by commas, with a positive value and one of the names
+by commas, with a positive normal value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
 # <1-6 5 22 22 8 1> <100>
 
-Too many coefficients.
+The polynomial must be given by at most seven integers, separated
+by blanks.
 
 # <1 6 5 22 22 8 -> <100>
 
-Too many coefficients.
+The polynomial must be given by at most seven integers, separated
+by blanks.
 
 # <1	178 817	-274 16 1> <20> <-q>
 (0, 1, -2, 4)
