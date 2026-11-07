@@ -27,7 +27,10 @@ INSTALL = cp
 
 INSTALL_DIR = /usr/local
 
-CCFLAGS0 = -Wall -O2 -fomit-frame-pointer -pthread
+# -ffp-contract=off: each operation on doubles rounds by itself, as written
+# (gcc fuses a*b + c into one multiply-add where the target has one, and the
+# margins of the real region and of the tube count each rounding)
+CCFLAGS0 = -Wall -O2 -fomit-frame-pointer -pthread -ffp-contract=off
 CCFLAGS =
 # The width of the sieve's passes, in words (see VW in j-points.h): the
 # default is the scalar walk; "make VECTOR=avx2" builds the passes with
