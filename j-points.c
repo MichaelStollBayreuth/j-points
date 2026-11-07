@@ -856,6 +856,9 @@ void init_fmodpsquare(void)
   /* sort the array to get at the best primes */
   qsort(prec, num_primes, sizeof(entry), compare_entries);
   choose_primes();
+  /* without sieving primes nothing is sieved: the box, without the
+     condition at 2 (set before message 4 reports the mode) */
+  if(sieve_primes3 == 0) { sieve_mode = 0; use2 = 0; }
   /* the tables of the primes chosen */
   for(n = 0; n < sieve_primes3; n++)
   { if(!tabled[pnn[n]]) { init_table(pnn[n]); tabled[pnn[n]] = 1; } }
@@ -1297,7 +1300,6 @@ void find_points(void)
   init_sieve();
   if(sieve_primes3 > 0 && prec[0].r == 0.0)
   { if(!quiet) message(1,0); return; }
-  if(sieve_primes3 == 0) { sieve_mode = 0; use2 = 0; }
   /* the bit array and the tables of the chunks */
   init_sift();
   /* deal with (0, 0, c, d) */

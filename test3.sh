@@ -73,7 +73,12 @@
 #        report of a run that is not -q: the point over (0, 0, 1), a double
 #        point (before 3.0.2 the report printed it and then "Found 0
 #        rational points")
-# The reports (39, 45, 46, 50, 59, 60) pin the four constants of the cost
+# 61-62  -N 0, no sieving at all, in the report of a run that is not -q:
+#        neither a mode of the sieve nor the condition at 2 is announced, as
+#        the box is searched (before 3.0.2 the report announced the mode the
+#        cost model chose, here the tube with the condition at 2 and the tube
+#        cut to the real region); 61 stops at the point over (0, 0, 1) (-1)
+# The reports (39, 45, 46, 50, 59-62) pin the four constants of the cost
 # model whose defaults depend on the width of the sieve's passes (VECTOR) to
 # the scalar build's values with -c, since they name the primes chosen: the
 # reference is then the same for every build.
@@ -150,3 +155,5 @@ f 'cat; echo' '0 400000000000000000000 -200000000060000000000 -39999999996999999
 e '1 2 3 4 5 6 7' 67108865
 f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
 f "grep -v '^This is j-points'" '1 0 0 0 0 0 2' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 500 -N 0 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 60 -n 0 -N 0 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2

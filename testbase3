@@ -973,3 +973,48 @@ Probabilities: Min(127) = 0.312916, Cut2(13) = 0.737824, Cut3(23) = 0.435851, Ma
 0 candidates survived the third stage.
 
 Found 1 rational points on K lifting to J.
+# <1 0 0 0 0 0 1> <500> <-N> <0> <-1> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = x^6 + 1
+
+max. Height = 500
+0 primes used for the first stage of sieving,
+0 primes used for the first two stages together,
+0 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
+(0, 0, 1, 0)
+
+0 candidates survived the first stage,
+0 candidates survived the second stage,
+0 candidates survived the third stage.
+
+Found 1 rational points on K lifting to J.
+# <21 116 171 128 55 12 1> <60> <-n> <0> <-N> <0> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = x^6 + 12 x^5 + 55 x^4 + 128 x^3 + 171 x^2 + 116 x + 21
+
+max. Height = 60
+0 primes used for the first stage of sieving,
+0 primes used for the first two stages together,
+0 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
+(0, 0, 1, -19)
+(0, 1, -2, 38)
+(0, 1, -2, 26)
+(1, -6, -1, -24)
+(1, -4, -3, 28)
+(1, -4, 1, -44)
+
+14640 candidates survived the first stage,
+772092 candidates survived the second stage,
+732609 candidates survived the third stage.
+
+Found 6 rational points on K lifting to J.
