@@ -52,7 +52,7 @@
 #define LONG_SHIFT ((LONG_LENGTH == 16) ? 4 : \
                     (LONG_LENGTH == 32) ? 5 : \
 		    (LONG_LENGTH == 64) ? 6 : 0)
-#define LONG_MASK (~(-1L<<LONG_SHIFT))
+#define LONG_MASK ((1L<<LONG_SHIFT) - 1)
 #define MAX_HEIGHT ((LONG_LENGTH == 16) ? 181UL : \
                     (LONG_LENGTH == 32) ? 46340UL : \
 		    (LONG_LENGTH == 64) ? 3037000499UL : 0UL)
@@ -64,7 +64,7 @@
 #define HALF_MASK ((bit_array)(~((unsigned long)(-1L) / 3)))
 
 typedef unsigned long bit_array;
-#define zero ((bit_array)0);
+#define zero ((bit_array)0)
 
 /* The width of the sieve's passes over the bit array, in words: 1 is the
    scalar walk; 2 or 4 use vectors of that many words through gcc's

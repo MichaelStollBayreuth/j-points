@@ -276,7 +276,7 @@ static inline int check_bits(bit_array nums, long a, long b, long i,
 {
   long c;
   /* c will be the coordinate corresponding to the selected bit */
-  for(c = i<<LONG_SHIFT; nums; nums >>= 1, c++)
+  for(c = i*(long)LONG_LENGTH; nums; nums >>= 1, c++)
   {/* test one bit */
     if(nums & 1)
     { num_surv2++;

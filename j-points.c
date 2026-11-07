@@ -1154,7 +1154,7 @@ void init_sieve(void)
         long p1 = (LONG_LENGTH/p + 1) * p;
         long diff_shift = p1 & LONG_MASK;
         long diff = LONG_LENGTH - diff_shift;
-        bit_array diff_mask = ~(bit_array)(-1L<<diff);
+        bit_array diff_mask = ((bit_array)1<<diff) - 1;
         long c1;
         long wp = p1>>LONG_SHIFT;
         /* copy the first chunk from help[a][b][] into the row */
