@@ -88,6 +88,9 @@
 #        class of the condition at 2 and the modulus 64 only 6/7 of them:
 #        the condition at 2 is used (before 3.0.2 it was given up whenever
 #        the modulus 16 admitted every class)
+# 66-67  an option word that is not two characters long: an error (before
+#        3.0.2 an option was recognised by its second character, so that
+#        -quiet was -q and -n5 7 was -n 7)
 # The reports (39, 45, 46, 50, 59-62, 65) pin the four constants of the cost
 # model whose defaults depend on the width of the sieve's passes (VECTOR) to
 # the scalar build's values with -c, since they name the primes chosen: the
@@ -170,3 +173,5 @@ f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 60 -n 0 -N 0 -c AND=0.6
 f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 1 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
 f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 2 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
 f "grep -v '^This is j-points'" '1 6 5 22 22 8 1' 500 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+e '1 2 3 4 5 6 7' 100 -quiet
+e '1 2 3 4 5 6 7' 100 -n5 7

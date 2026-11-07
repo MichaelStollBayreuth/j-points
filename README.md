@@ -63,7 +63,9 @@ where
   most 2^26 = 67108864: beyond it the doubles of the sieve in the real region
   can round past their margins.
 
-The optional arguments, which can be given in any order, are these.
+The optional arguments, which can be given in any order, are these. Each
+option is a word of two characters (`-q`, not `-quiet`), and the value of an
+option that takes one is the next word (`-n 5`, not `-n5`).
 
 + `-n num_primes1`: the number of primes used for the first sieving stage.
   By default it is chosen automatically, like the primes themselves (see

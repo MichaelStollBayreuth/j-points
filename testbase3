@@ -1062,3 +1062,21 @@ Probabilities: Min(73) = 0.321430, Cut2(37) = 0.413658, Cut3(67) = 0.356299, Max
 574 candidates survived the third stage.
 
 Found 12 rational points on K lifting to J.
+# <1 2 3 4 5 6 7> <100> <-quiet>
+
+Wrong syntax for optional arguments:
+
+
+Usage: j-points 'a_0 a_1 ... a_d' max_height
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
+# <1 2 3 4 5 6 7> <100> <-n5> <7>
+
+Wrong syntax for optional arguments:
+
+
+Usage: j-points 'a_0 a_1 ... a_d' max_height
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-w bound4] [-c constants] [-1] [-q] [-a]

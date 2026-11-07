@@ -432,11 +432,12 @@ void read_input(long argc, char *argv[])
   all_points = 0;      /* take naive Kummer height */
   print_format = "(%ld, %ld, %ld, %ld)\n";
   array_size = DEFAULT_SIZE;
-  /* recognise optional args */
+  /* recognise optional args, each a word of two characters: a minus sign
+     and the option's character */
   { long i = 3;
     while(i <= argc)
     {
-      if(*(argv[i]) != '-') error(6);
+      if(argv[i][0] != '-' || strlen(argv[i]) != 2) error(6);
       switch(argv[i][1])
       { case 'n': /* number of primes used for first stage of sieving */
           if(argc == i) error(6);
