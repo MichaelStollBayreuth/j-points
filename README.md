@@ -57,6 +57,8 @@ where
 
 + f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6 (zero leading
   coefficients are dropped); f must be squarefree, which the program checks;
+  the coefficients are integers in decimal, each an optional sign directly
+  followed by digits, separated by spaces or tabs;
 + h is the bound on the naive height: the program finds the points
   (a : b : c : d) on the Kummer surface, with coprime integral coordinates,
   that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. It can be at

@@ -553,20 +553,25 @@ static int scan_long(const char *s, long *v)
   return(end != s && errno != ERANGE);
 }
 
-/* Read in a long long long integer. Should really be in the library. */
+/* Read in a long long long integer. Should really be in the library.
+   Blanks (spaces and tabs) first, then an optional sign and at least one
+   digit, then a blank or the end of the string: the rest of s returned,
+   NULL when s holds blanks only, error 3 when it is not of that form */
 char *scan_mpz(char *s, MP_INT *x)
 {
   long neg = 0;
   if(s == NULL || *s == 0) return NULL;
-  while(*s == ' ') s++;
+  while(*s == ' ' || *s == '\t') s++;
   if(*s == 0) return NULL;
   if(*s == '-') {neg = 1; s++;}
   else if(*s == '+') s++;
+  if(!('0' <= *s && *s <= '9')) error(3);
   mpz_set_si(&tmp2, 0);
   while('0' <= *s && *s <= '9')
   { mpz_mul_ui(&tmp2, &tmp2, 10);
     mpz_add_ui(&tmp2, &tmp2, (long)(*s - '0'));
     s++; }
+  if(*s != 0 && *s != ' ' && *s != '\t') error(3);
   if(neg) mpz_neg(&tmp2, &tmp2);
   mpz_set(x, &tmp2);
   return s;

@@ -1137,3 +1137,18 @@ The argument of -c must be NAME=value, or several of them separated
 by commas, with a positive value and one of the names
  AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
 
+# <1-6 5 22 22 8 1> <100>
+
+Too many coefficients.
+
+# <1 6 5 22 22 8 -> <100>
+
+Too many coefficients.
+
+# <1	178 817	-274 16 1> <20> <-q>
+(0, 1, -2, 4)
+(0, 1, 0, 0)
+(0, 1, 4, 16)
+(1, -17, 0, -2)
+(1, -6, 0, -12)
+(1, -9, 0, -6)

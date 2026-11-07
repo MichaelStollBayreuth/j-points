@@ -96,6 +96,12 @@
 # 71-75  -c with a value that is infinite, overflows or is subnormal, with
 #        the empty string and with a final comma: an error (before 3.0.2 each
 #        was accepted, 1e-320 as 9.99989e-321)
+# 76-78  the coefficients: a sign without a digit after it, or a number
+#        followed by something other than a blank, is an error (before 3.0.2
+#        '1-6 5 22 22 8 1' was the sextic with the coefficients 1, -6, 5, ...,
+#        and a lone sign was read as 0, so that '1 6 5 22 22 8 -' was a
+#        quintic); tabs separate the coefficients like spaces (before 3.0.2 a
+#        tab was an error)
 # The reports (39, 45, 46, 50, 59-62, 65) pin the four constants of the cost
 # model whose defaults depend on the width of the sieve's passes (VECTOR) to
 # the scalar build's values with -c, since they name the primes chosen: the
@@ -188,3 +194,6 @@ e '21 116 171 128 55 12 1' 100 -c AND=1e999
 e '21 116 171 128 55 12 1' 100 -c AND=1e-320
 e '21 116 171 128 55 12 1' 100 -c ''
 e '21 116 171 128 55 12 1' 100 -c AND=0.63,
+e '1-6 5 22 22 8 1' 100
+e '1 6 5 22 22 8 -' 100
+t "$(printf '1\t178 817\t-274 16 1')" 20 -q
