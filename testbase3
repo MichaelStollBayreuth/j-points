@@ -624,9 +624,9 @@ Probabilities: Min(181) = 0.349499, Cut2(11) = 0.571751, Cut3(41) = 0.392348, Ma
 (1, -4, 1, -44)
 (1, -2, -5, 64)
 
-64586 candidates survived the first stage,
-48082 candidates survived the second stage,
-2528 candidates survived the third stage.
+64536 candidates survived the first stage,
+48069 candidates survived the second stage,
+2527 candidates survived the third stage.
 
 Found 8 rational points on K lifting to J.
 # <2 0 5 0 4 0 1> <100>

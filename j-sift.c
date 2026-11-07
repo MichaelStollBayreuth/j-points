@@ -405,9 +405,11 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    the Taylor expansion sum p_jk s^j t^k at the centre (bm, cm), |s| <=
    rb, |t| <= rc, the value keeps the sign of p_00 throughout when
    |p_00| > sum' |p_jk| rb^j rc^k; the rounding errors of the
-   coefficients, which may cancel, are covered by TUBE_EPS times the
-   absolute polynomial at (|bm| + rb, |cm| + rc), so that no word that
-   can hold a point is lost.  An undecided cell is halved, in rows or in
+   coefficients and of the sums, which may cancel, are covered by
+   TUBE_EPS times the absolute polynomial at (|bm| + rb, |cm| + rc), so
+   that no word that can hold a point is lost: with every rounding
+   counted, a margin of 2^-47 times it suffices, and 2^-44 leaves a
+   factor 8.  An undecided cell is halved, in rows or in
    words, until it is at most TUBE_ROWS rows by one word; that word is
    then collected for each of its rows, as the words of a cell taken
    whole are.
@@ -419,7 +421,7 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    check -- or the region -- the passes of the box sieve run over the
    ranges of words of the real region. */
 
-#define TUBE_EPS 1.5e-5   /* each coefficient with a margin of 1e-6 */
+#define TUBE_EPS 0x1p-44  /* the margin, relative to the absolute polynomial */
 #define TUBE_BIG 1.0e300  /* the scale beyond which nothing is decided */
 #define TUBE_ROWS 64      /* rows of a leaf cell (16 to 128 measured much the same) */
 #define L 5               /* the row length of a coefficient array (degree at most 4) */
