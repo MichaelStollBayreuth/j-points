@@ -917,3 +917,59 @@ Usage: j-points 'a_0 a_1 ... a_d' max_height
 Incorrect height argument.
   Height must be in [1, 67108864].
 
+# <1 0 0 0 0 0 1> <10> <-1> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = x^6 + 1
+
+max. Height = 10
+Sieving in the tube of the bound on the fourth coordinate:
+about 2.00 words per row, 0.28 cells of the analysis per row.
+0 primes used for the first stage of sieving,
+6 primes used for the first two stages together,
+11 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
+Sieving primes:
+ First stage: 
+ Second stage: 3, 5, 11, 7, 13, 19
+ Third stage: 61, 43, 59, 47, 53
+Probabilities: Min(103) = 0.313766, Cut2(19) = 0.354425, Cut3(53) = 0.410413, Max(7) = 0.790087
+
+(0, 0, 1, 0)
+
+0 candidates survived the first stage,
+0 candidates survived the second stage,
+0 candidates survived the third stage.
+
+Found 1 rational points on K lifting to J.
+# <1 0 0 0 0 0 2> <10> <-1> <-c> <AND=0.63,SIZE=756,TEST2=5.6,TTEST=2> | grep -v '^This is j-points'
+
+
+Please acknowledge use of the program in published work.
+
+
+y^2 = 2 x^6 + 1
+
+max. Height = 10
+Sieving in the tube of the bound on the fourth coordinate:
+about 2.00 words per row, 0.28 cells of the analysis per row.
+0 primes used for the first stage of sieving,
+6 primes used for the first two stages together,
+12 primes used for all three stages together.
+Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
+Sieving primes:
+ First stage: 
+ Second stage: 7, 5, 3, 11, 17, 13
+ Third stage: 47, 53, 59, 41, 19, 23
+Probabilities: Min(127) = 0.312916, Cut2(13) = 0.737824, Cut3(23) = 0.435851, Max(3) = 0.851852
+
+(1, 0, 0, 0)
+
+0 candidates survived the first stage,
+0 candidates survived the second stage,
+0 candidates survived the third stage.
+
+Found 1 rational points on K lifting to J.

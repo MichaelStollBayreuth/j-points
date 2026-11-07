@@ -69,9 +69,13 @@
 #        only a bare %ld was passed to gmp, and a width printed a pointer)
 # 58     a height bound above 2^26: an error (before 3.0.2 heights up to
 #        3037000499 were accepted, at which the real region could lose points)
-# The reports (39, 45, 46, 50) pin the four constants of the cost model
-# whose defaults depend on the width of the sieve's passes (VECTOR) to the
-# scalar build's values with -c, since they name the primes chosen: the
+# 59-60  -1 with the first point found before the units of work, in the
+#        report of a run that is not -q: the point over (0, 0, 1), a double
+#        point (before 3.0.2 the report printed it and then "Found 0
+#        rational points")
+# The reports (39, 45, 46, 50, 59, 60) pin the four constants of the cost
+# model whose defaults depend on the width of the sieve's passes (VECTOR) to
+# the scalar build's values with -c, since they name the primes chosen: the
 # reference is then the same for every build.
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
@@ -144,3 +148,5 @@ e '21 116 171 128 55 12 1' 100 -w 1000000000000000000000000000000
 t '21 116 171 128 55 12 1' 100 -q -s 72057594037927936
 f 'cat; echo' '0 400000000000000000000 -200000000060000000000 -399999999969999999998 200000000059999999999 -30000000002 1' 10 -q -a -f '[%24ld|%-3ld|%+ld|%ld] %%;'
 e '1 2 3 4 5 6 7' 67108865
+f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '1 0 0 0 0 0 2' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2

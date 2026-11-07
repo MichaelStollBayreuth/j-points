@@ -1306,10 +1306,11 @@ void find_points(void)
     mpz_mul_ui(&tmp, &coeffs[6], 4);
     mpz_mul(&tmp2, &tmp, &coeffs[4]);
     mpz_sub(&fff, &fff, &tmp2);
-    if(check_one_point_final(0, 0, 1, &fff, &tmp) && one_point) return;
+    if(check_one_point_final(0, 0, 1, &fff, &tmp) && one_point)
+    { tot_points = total; return; }
   }
   /* deal with `double points' */
-  if(find_double_points() && one_point) return;
+  if(find_double_points() && one_point) { tot_points = total; return; }
   /* the main search, the units of work being the values of a */
   { long units = (degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
                  ? (long)floor(sqrt((double)height)) + 1 : height + 1;
