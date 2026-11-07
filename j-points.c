@@ -1753,14 +1753,12 @@ static long twoadic_table(long m, bit_array masks[64][64],
 
 void twoadic_init(void)
 {
-  static bit_array masks16[64][64];
-  static unsigned char alive16[64][64];
   long count, empty;
-  /* the modulus 16 first, cheap: when it admits every class (f a square
-     modulo 4, as on the record curve), the modulus 64 does too */
-  count = twoadic_table(16, masks16, alive16, &empty);
-  if(count == 16*16*16 - 8*8*8) { use2 = 0; return; }
+  /* no condition when the modulus 64 admits every class, as on the
+     record curve (the modulus 16 cannot tell: on '1 6 5 22 22 8 1' it
+     admits every class, the modulus 64 only 6/7 of them) */
   count = twoadic_table(64, mask2, alive2, &empty);
+  if(count == 64*64*64 - 32*32*32) { use2 = 0; return; }
   density2 = (double)count / (double)(64*64*64 - 32*32*32);
   empty2 = (double)empty / (double)(64*64);
   use2 = 1;

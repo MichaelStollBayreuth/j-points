@@ -84,7 +84,11 @@
 #        (gmp_asprintf): every point in the style of printf (before 3.0.2 the
 #        point beyond a machine word printed as [ 0|00000000|10000|...], its
 #        third coordinate 1 padded with zeros on the right)
-# The reports (39, 45, 46, 50, 59-62) pin the four constants of the cost
+# 65     the report of a run on a curve where the modulus 16 admits every
+#        class of the condition at 2 and the modulus 64 only 6/7 of them:
+#        the condition at 2 is used (before 3.0.2 it was given up whenever
+#        the modulus 16 admitted every class)
+# The reports (39, 45, 46, 50, 59-62, 65) pin the four constants of the cost
 # model whose defaults depend on the width of the sieve's passes (VECTOR) to
 # the scalar build's values with -c, since they name the primes chosen: the
 # reference is then the same for every build.
@@ -165,3 +169,4 @@ f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 500 -N 0 -1 -c AND=0.63,SIZE=756
 f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 60 -n 0 -N 0 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
 f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 1 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
 f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 2 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
+f "grep -v '^This is j-points'" '1 6 5 22 22 8 1' 500 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
