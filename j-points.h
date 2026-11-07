@@ -56,6 +56,10 @@
 #define MAX_HEIGHT ((LONG_LENGTH == 16) ? 181UL : \
                     (LONG_LENGTH == 32) ? 46340UL : \
 		    (LONG_LENGTH == 64) ? 3037000499UL : 0UL)
+#define MAX_SEARCH_HEIGHT ((MAX_HEIGHT < (1UL << 26)) ? MAX_HEIGHT : (1UL << 26))
+   /* the largest height bound accepted: up to 2^26 the products of
+      row_region stay below 2^53, where the rounding of the ends of its
+      excluded intervals stays within their margins */
 
 #define HALF_MASK ((bit_array)(~((unsigned long)(-1L) / 3)))
 

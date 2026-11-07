@@ -420,7 +420,7 @@ void read_input(long argc, char *argv[])
   if(degree < 5) error(5);
   if(degree == 5) mpz_set_si(&coeffs[6], 0);
   if(!squarefree()) error(9);
-  if(!scan_long(argv[2], &height) || height < 1 || height > MAX_HEIGHT)
+  if(!scan_long(argv[2], &height) || height < 1 || height > MAX_SEARCH_HEIGHT)
   { error(4); }
   /* Set global variables to their default values */
   sieve_primes1 = -1;  /* automatic determination of this number */
@@ -2391,7 +2391,7 @@ void error(long n)
       break;
     case 3: printf("\nToo many coefficients.\n\n"); break;
     case 4: printf("\nIncorrect height argument.\n");
-            printf("  Height must be in [1, %ld].\n\n", MAX_HEIGHT); break;
+            printf("  Height must be in [1, %ld].\n\n", MAX_SEARCH_HEIGHT); break;
     case 5: printf("\nThe polynomial must have degree at least 5.\n\n"); break;
     case 7: printf("\nNot enough memory.\n\n"); break;
     case 8: printf("\nCould not start a thread.\n\n"); break;

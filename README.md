@@ -59,8 +59,9 @@ where
   coefficients are dropped); f must be squarefree, which the program checks;
 + h is the bound on the naive height: the program finds the points
   (a : b : c : d) on the Kummer surface, with coprime integral coordinates,
-  that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. On a machine
-  with 64-bit longs, h can be at most 3037000499.
+  that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. It can be at
+  most 2^26 = 67108864: beyond it the doubles of the sieve in the real region
+  can round past their margins.
 
 The optional arguments, which can be given in any order, are these.
 

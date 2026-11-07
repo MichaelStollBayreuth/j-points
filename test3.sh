@@ -67,6 +67,8 @@
 #        3.0.1): the size is cut to the bit array
 # 57     -f with flags, a width and %% in the gmp path of -a (before 3.0.1
 #        only a bare %ld was passed to gmp, and a width printed a pointer)
+# 58     a height bound above 2^26: an error (before 3.0.2 heights up to
+#        3037000499 were accepted, at which the real region could lose points)
 # The reports (39, 45, 46, 50) pin the four constants of the cost model
 # whose defaults depend on the width of the sieve's passes (VECTOR) to the
 # scalar build's values with -c, since they name the primes chosen: the
@@ -81,8 +83,9 @@ JPOPTS=${JPOPTS:-}
 t() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@" $JPOPTS | LC_ALL=C sort; }
 # the same, with the output run through a filter (the first argument)
 f() { filter=$1; shift; printf '#'; for a; do printf ' <%s>' "$a"; done; printf ' | %s\n' "$filter"; "$JP" "$@" $JPOPTS | eval "$filter"; }
-# an invocation that is expected to fail: no $JPOPTS, output unsorted
-e() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@"; }
+# an invocation that is expected to fail: no $JPOPTS, output unsorted, its
+# exit status not that of the script
+e() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@"; return 0; }
 t '1 178 817 -274 16 1' 20 -q -a
 t '21 116 171 128 55 12 1' 20 -q -a
 t '3 -1 2 5 -4 1 4' 20 -q -a
@@ -140,3 +143,4 @@ t '21 116 171 128 55 12 1' 20 -q -t 1000000000
 e '21 116 171 128 55 12 1' 100 -w 1000000000000000000000000000000
 t '21 116 171 128 55 12 1' 100 -q -s 72057594037927936
 f 'cat; echo' '0 400000000000000000000 -200000000060000000000 -399999999969999999998 200000000059999999999 -30000000002 1' 10 -q -a -f '[%24ld|%-3ld|%+ld|%ld] %%;'
+e '1 2 3 4 5 6 7' 67108865
