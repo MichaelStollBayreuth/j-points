@@ -179,3 +179,46 @@ measured; the README describes the current version.
     took it as 2^63 - 1); `-s` with a size of 2^56 KB or more crashed; and
     with `-a`, a `-f` format whose conversions have flags or a width printed
     the coordinates beyond the machine word as garbage.
++ 07-Nov-2026, version 3.0.2: the defects found while the program was
+  modelled in Lean and proved correct there (the project JPointsLean), and
+  two changes that the proofs allow. The points printed are the same, apart
+  from the height bounds that are no longer accepted.
+  + Height bounds above 2^26 = 67108864 are refused (error 4). Beyond about
+    2 10^8 the real region could exclude words of the bit array that hold
+    points: near x = b/a the two products of `row_region` pass 2^53, and the
+    rounding of their difference exceeded the margins of the excluded
+    intervals (two curves lost points at the heights 215937726 and
+    767091715). Up to 2^26 the rounding stays within the margins.
+  + `TUBE_EPS`, the margin of the analysis of the tube, is 2^-44 instead of
+    1.5e-5: a margin of 2^-47 covers every rounding, and the old one sent
+    the cells near the zero curves down to single words. A monic quintic
+    with coefficients near 10^6 at height 10^5 takes 0.77 s instead of
+    158 s; for small coefficients nothing changes.
+  + The build sets `-ffp-contract=off`, so that each operation on doubles
+    rounds by itself, as the margins count it, also on a processor with a
+    fused multiply-add (aarch64); on x86-64 the program is unchanged.
+  + With `-1` the report said "Found 0 rational points" after a first point
+    over (0 : 0 : 1) or a double point; with `-N 0` it announced a mode of
+    the sieve and the condition at 2 that the run does not use.
+  + With `-a`, a `-f` format with the flags `+` and space, `-` and `0`, `0`
+    and a precision, or a lone `.` printed the coordinates beyond the
+    machine word otherwise than the others, since gmp reads these flags
+    otherwise than printf; they print alike now.
+  + The condition at 2 was given up when the modulus 16 admitted every
+    class, which does not make the modulus 64 do so (on
+    `'1 6 5 22 22 8 1'` it admits 6/7 of the classes); it is decided on the
+    modulus 64 now, which saves 20-30% on some curves of low density.
+  + Defects that no input reached: `check_lifts` multiplied by 2^64 + b
+    instead of b for b < 0 when a = 0, and `relprime(0, m)` did not end for
+    odd m; left shifts of negative values, which ISO C leaves undefined; a
+    data race on a counter of the tube's analysis under `-t`, and a leak of
+    the first bit array of the main thread.
+  + The code and data that no input reaches or reads are gone.
+  + The command line is read strictly: an option is a word of two
+    characters (`-quiet` was taken for `-q`), the numbers of primes of
+    `-n`, `-M` and `-N` must not be negative (they meant 0), `-c` refuses
+    infinities, subnormals, overflows, an empty argument and a final comma,
+    and the coefficients are integers separated by spaces or tabs
+    (`'1-6 5 22 22 8 1'` was read as seven coefficients). The messages of
+    errors 3 and 10 say so.
+  + Comments corrected.

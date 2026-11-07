@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-3.0                                                        *
+ * j-points-3.0.2                                                      *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
