@@ -435,7 +435,6 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    k2 (2), and the absolute values of the coefficients of |k0| + W |k1| +
    W^2 |k2|, the scale of the errors */
 static _Thread_local double K0[NC], K1[NC], K2[NC], KA[NC];
-static _Thread_local long tube_a;   /* the current a */
 static _Thread_local int tube_ok;   /* whether the analysis may decide, see below */
 static _Thread_local long tube_ncells;
 
@@ -464,7 +463,6 @@ static void tube_a_init(long a)
      below TUBE_BIG none of them can overflow; beyond it, or when a
      coefficient is not finite, tube_cell decides nothing */
   tube_ok = (tube_eval(KA, 4, (double)height, (double)(height + LONG_LENGTH)) < TUBE_BIG);
-  tube_a = a;
   return;
 }
 
@@ -601,15 +599,12 @@ static inline double tube_eval(double *QA, long deg, double x, double y)
   return(sum);
 }
 
-/* the sign of a polynomial throughout the cell: 1 or -1 when the bounds
-   show it, else 0; *hi bounds its absolute value, err is the margin for
-   the rounding errors */
-static inline int poly_sign(double *Q, long deg, double *rp, double err,
-                            double *lo, double *hi)
+/* the sign of a polynomial Q shifted to the centre of the cell
+   throughout the cell: 1 or -1 when the bound dev on |Q - Q[0]| there
+   shows it, else 0 */
+static inline int poly_sign(double *Q, double dev)
 {
-  double s = tube_sum(Q, deg, rp) + err;
-  *lo = fabs(Q[0]) - s; *hi = fabs(Q[0]) + s;
-  if(*lo > 0.0) { return((Q[0] > 0.0) ? 1 : -1); }
+  if(fabs(Q[0]) - dev > 0.0) { return((Q[0] > 0.0) ? 1 : -1); }
   return(0);
 }
 
@@ -640,7 +635,7 @@ static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
   double cm = 32.0*(double)(i_lo + i_hi) - 0.5;
   double rc = 32.0*(double)(i_hi - i_lo) - 0.5;
   double fb = fabs(bm) + rb, fc = fabs(cm) + rc;   /* the far corner */
-  double ma, lo2, hi2, lop, hip, lom, him, err, m[NC];
+  double ma, err, d2, m[NC];
   int s2, sp, sm, inside;
   long j, k;
   tube_ncells++;
@@ -665,21 +660,25 @@ static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
      that bounds each of them */
   ma = tube_eval(KA, 4, fb, fc);
   err = TUBE_EPS*ma;
-  s2 = poly_sign(p2, 2, rp, err/th2, &lo2, &hi2);   /* the sign of k2 */
+  /* the bounds on |Q - Q[0]| over the cell: tube_sum, with the margin
+     for the rounding errors */
+  d2 = tube_sum(p2, 2, rp) + err/th2;
+  s2 = poly_sign(p2, d2);   /* the sign of k2 */
   for(j = 0; j < NC; j++)
   { q[j] = p0[j] + th*p1[j] + th2*p2[j];    /* Q(W) */
     m[j] = p0[j] - th*p1[j] + th2*p2[j];    /* Q(-W) */
   }
-  sp = poly_sign(q, 4, rp, err, &lop, &hip);
-  sm = poly_sign(m, 4, rp, err, &lom, &him);
+  sp = poly_sign(q, tube_sum(q, 4, rp) + err);
+  sm = poly_sign(m, tube_sum(m, 4, rp) + err);
   /* a sign change of Q between -W and W throughout: a root inside */
   inside = (sp != 0 && sm != 0 && sp != sm);
   if(sp != 0 && sm != 0 && sp == sm)
   { /* the same sign throughout: both roots inside, or none; out when k2
        has the other sign, or |k1| > 2 W |k2|, throughout */
-    double lo1, hi1;
+    double lo1, hi2;
     if(s2 != 0 && s2 != sp) { return; }
-    poly_sign(p1, 3, rp, err/th, &lo1, &hi1);
+    lo1 = fabs(p1[0]) - (tube_sum(p1, 3, rp) + err/th);   /* |k1| at least */
+    hi2 = fabs(p2[0]) + d2;                              /* |k2| at most */
     if(lo1 > 2.0*th*hi2) { return; }
   }
   /* the condition holds throughout: the cell whole */

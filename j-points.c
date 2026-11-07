@@ -181,7 +181,7 @@ static int costs_set = 0;   /* whether -c set any of them */
 
 bit_array bits[LONG_LENGTH]; /* An array of bit masks */
 
-typedef struct {long p; double r; long n; long np0;} entry;
+typedef struct {long p; double r; long n;} entry;
 
 long inverses[NUM_PRIMES][MAX_PRIME_EVEN];
 /* inverses[pn][a] = b such that a*b = 1 mod p = prime[pn]; 0 < a, b < p. */
@@ -235,11 +235,11 @@ int tube_cut = 0;          /* the tube's words cut to the real region */
 double tube_words = 0.0, tube_words_cut = 0.0, tube_cells = 0.0, tube_rows = 1.0;
 double reg_words = 0.0, reg_ranges = 0.0, reg_rows = 1.0;
 /* The real roots of f, for condition (3) of the analysis: the open
-   intervals on which f is negative, each given grown by the isolating
-   intervals of the roots at its ends (f may be negative there) and
-   shrunk by them (f is negative there for sure); see real_roots_init */
+   intervals on which f is negative, each shrunk by the isolating
+   intervals of the roots at its ends (f is negative on what is left for
+   sure); see real_roots_init */
 long num_neg = 0;
-double neg_grown_lo[8], neg_grown_hi[8], neg_shrunk_lo[8], neg_shrunk_hi[8];
+double neg_shrunk_lo[8], neg_shrunk_hi[8];
 
 /* The condition at 2 (see twoadic_init): per class of (a, b) mod 64 the
    word of the admitted c mod 64, the fill of the bit array of a row, and
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
   { message(0, 0);
     message(5, degree);
     message(6, height);
-    message(3, 0);
+    fflush(stdout);
   }
   normalise_curve();
   begmask = (~0UL)<<((-height) & LONG_MASK);
@@ -796,7 +796,7 @@ void init_fmodpsquare(void)
    is_point_on_j[][][] of the primes chosen */
 {
   long a, pn, p, n, s, np0;
-  int sampled[NUM_PRIMES], tabled[NUM_PRIMES];
+  int tabled[NUM_PRIMES];
 
   for(pn = 0; pn < num_primes; pn++)
   {
@@ -826,7 +826,6 @@ void init_fmodpsquare(void)
     }
     /* deal with (1,b,c): the whole table, or a sample */
     stride = (pp + SAMPLE_PAIRS - 1) / SAMPLE_PAIRS;
-    sampled[pn] = (stride > 1);
     tabled[pn] = 0;
     if(stride == 1)
     { count = init_table(pn); total = pp; tabled[pn] = 1; }
@@ -843,16 +842,6 @@ void init_fmodpsquare(void)
     prec[pn].p = p;
     prec[pn].n = pn;
     prec[pn].r = rate_of(p, np0, (double)count * (double)pp / (double)total);
-    prec[pn].np0 = np0;
-  }
-  /* a sampled rate of 0 is no proof that no class is admitted: those
-     primes get the exact count (a rate of 0 means that there are no
-     points at all, see find_points) */
-  for(pn = 0; pn < num_primes; pn++)
-  { if(sampled[pn] && prec[pn].r == 0.0)
-    { prec[pn].r = rate_of(prime[pn], prec[pn].np0, (double)init_table(pn));
-      tabled[pn] = 1;
-    }
   }
   /* sort the array to get at the best primes */
   qsort(prec, num_primes, sizeof(entry), compare_entries);
@@ -969,7 +958,7 @@ static double choose_primes_mode(int mode, int cut)
   if(use2) { rows *= 1.0 - empty2; }
   for(n = 0; n < num_primes; n++)
   { double p = (double)prec[n].p;
-    logr[n] = (prec[n].r > 0.0) ? -log(prec[n].r) : 1.0e9;
+    logr[n] = -log(prec[n].r);   /* every rate is at least 1/p^2 (rate_of) */
     tabcost[n] = cost_table * p*p*(p + 1.0);
     initcost[n] = (p*p > (double)SAMPLE_PAIRS) ? cost_init * p*p : 0.0;
   }
@@ -1014,10 +1003,9 @@ static double choose_primes_mode(int mode, int cut)
     qsort(list2, ne2, sizeof(cand), compare_cands);
     n2lo = n1; n2hi = n1 + ne2;
     if(sieve_primes3 >= 0 && n2hi > sieve_primes3) { n2hi = sieve_primes3; }
+    /* n1 is at most a pinned n2 and n3, so n2lo >= n1 */
     if(sieve_primes2 >= 0)
-    { n2lo = n2hi = (sieve_primes2 < n2hi) ? sieve_primes2 : n2hi;
-      if(n2lo < n1) { n2lo = n2hi = n1; }
-    }
+    { n2lo = n2hi = (sieve_primes2 < n2hi) ? sieve_primes2 : n2hi; }
     for(n2 = n2lo; n2 <= n2hi; n2++)
     { double cost2, setup2 = setup1, rho2 = rho1, w = s1, rowbit;
       long n3lo, n3hi, ne3 = 0;
@@ -1045,10 +1033,9 @@ static double choose_primes_mode(int mode, int cut)
       }
       qsort(list3, ne3, sizeof(cand), compare_cands);
       n3lo = n2; n3hi = n2 + ne3;
+      /* n2 is at most a pinned n3, so n3lo >= n2 */
       if(sieve_primes3 >= 0)
-      { n3lo = n3hi = (sieve_primes3 < n3hi) ? sieve_primes3 : n3hi;
-        if(n3lo < n2) { n3lo = n3hi = n2; }
-      }
+      { n3lo = n3hi = (sieve_primes3 < n3hi) ? sieve_primes3 : n3hi; }
       { double cost3 = bits * rho2 * cost_bit, setup3 = setup2, rho = rho2;
         for(n3 = n2; n3 <= n3hi; n3++)
         { if(n3 >= n3lo)
@@ -1299,8 +1286,6 @@ void find_points(void)
   init_fmodpsquare();
   /* allocate and initalise the sieve tables */
   init_sieve();
-  if(sieve_primes3 > 0 && prec[0].r == 0.0)
-  { if(!quiet) message(1,0); return; }
   /* the bit array and the tables of the chunks */
   init_sift();
   /* deal with (0, 0, c, d) */
@@ -1314,10 +1299,11 @@ void find_points(void)
   }
   /* deal with `double points' */
   if(find_double_points() && one_point) { tot_points = total; return; }
-  /* the main search, the units of work being the values of a */
+  /* the main search, the units of work being the values of a; for a
+     monic quintic the squares up to h, floor(sqrt(h)) being the integer
+     square root of h (exact as a double, far below 2^52) */
   { long units = (degree == 5 && mpz_cmp_si(&coeffs[5], 1) == 0)
                  ? (long)floor(sqrt((double)height)) + 1 : height + 1;
-    while(units > 0 && unit_a(units - 1) > height) { units--; }
     run_units(units);
   }
   return;
@@ -1496,7 +1482,8 @@ void tube_init(void)
    Cauchy bound, and each isolating interval is bisected on to a relative
    width of 2^-40; between consecutive roots f has one sign, alternating
    from the sign at +infinity.  The negative intervals go to the arrays
-   above, their ends rounded outwards (grown) or inwards (shrunk). */
+   above, shrunk by the isolating intervals and their ends rounded
+   inwards. */
 static mpq_t sturm[7][7];      /* the chain, sturm[i][k] the coefficient of x^k of p_i */
 static long sturm_deg[7], sturm_len;
 static mpq_t root_lo[6], root_hi[6];   /* the isolating intervals, in order */
@@ -1508,10 +1495,10 @@ static long num_roots;
 
 static long sturm_changes(mpq_t x)
 {
-  mpq_t v, t;
+  mpq_t v;
   long i, k, changes = 0;
   int last = 0;
-  mpq_init(v); mpq_init(t);
+  mpq_init(v);
   for(i = 0; i < sturm_len; i++)
   { int s;
     mpq_set(v, sturm[i][sturm_deg[i]]);
@@ -1523,7 +1510,7 @@ static long sturm_changes(mpq_t x)
       last = s;
     }
   }
-  mpq_clear(v); mpq_clear(t);
+  mpq_clear(v);
   return(changes);
 }
 
@@ -1536,17 +1523,14 @@ static void sturm_isolate(mpq_t lo, mpq_t hi, long nlo, long nhi)
   mpq_init(mid);
   if(nlo - nhi == 1)
   { /* one root: bisect to a relative width of 2^-40 */
-    mpq_t w;
-    mpq_init(w);
     for(;;)
     { double d = mpq_get_d(hi) - mpq_get_d(lo), s = fabs(mpq_get_d(lo)) + fabs(mpq_get_d(hi));
       if(d <= 0.5*ldexp(1.0, -40)*(s + 1.0)) { break; }
       mpq_add(mid, lo, hi); mpq_div_2exp(mid, mid, 1);
       nmid = sturm_changes(mid);
-      if(nlo - nmid == 1) { mpq_set(hi, mid); nhi = nmid; }
+      if(nlo - nmid == 1) { mpq_set(hi, mid); }
       else { mpq_set(lo, mid); nlo = nmid; }
     }
-    mpq_clear(w);
     if(num_roots < 6)
     { mpq_set(root_lo[num_roots], lo); mpq_set(root_hi[num_roots], hi); num_roots++; }
     mpq_clear(mid);
@@ -1628,18 +1612,11 @@ static void real_roots_init(void)
     for(i = num_roots; i >= 0; i--)
     { long s = ((num_roots - i) % 2 == 0) ? sgn_inf : -sgn_inf;   /* on (root i-1, root i) */
       if(s < 0)
-      { double glo, ghi, slo, shi;
-        if(i == 0) { glo = slo = -HUGE_VAL; }
-        else
-        { glo = nextafter(mpq_get_d(root_lo[i-1]), -HUGE_VAL);
-          slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL);
-        }
-        if(i == num_roots) { ghi = shi = HUGE_VAL; }
-        else
-        { ghi = nextafter(mpq_get_d(root_hi[i]), HUGE_VAL);
-          shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL);
-        }
-        neg_grown_lo[num_neg] = glo; neg_grown_hi[num_neg] = ghi;
+      { double slo, shi;
+        if(i == 0) { slo = -HUGE_VAL; }
+        else { slo = nextafter(mpq_get_d(root_hi[i-1]), HUGE_VAL); }
+        if(i == num_roots) { shi = HUGE_VAL; }
+        else { shi = nextafter(mpq_get_d(root_lo[i]), -HUGE_VAL); }
         neg_shrunk_lo[num_neg] = slo; neg_shrunk_hi[num_neg] = shi;
         num_neg++;
       }
@@ -1667,84 +1644,82 @@ static void real_roots_init(void)
    sol[k2][k1][k0] holds the d with k2 d^2 + k1 d + k0 = 0 mod 64, built
    by running over (k2, k1, d); the cases v = 2^e use it with k1, k0
    scaled.  Rows with a = 0 keep the plain condition (not all even). */
-/* the table for the modulus m (16 or 64; a word holds the 64 residues
-   of c, the pattern repeated for m = 16); returns the number of admitted
-   triples not all even, and counts the empty classes of (a, b) */
-static long twoadic_table(long m, bit_array masks[64][64],
-                          unsigned char alive[64][64], long *empty)
+/* the table for the modulus 64 (a word holds the 64 residues of c);
+   returns the number of admitted triples not all even, and counts the
+   empty classes of (a, b) */
+static long twoadic_table(bit_array masks[64][64], unsigned char alive[64][64],
+                          long *empty)
 {
-  bit_array *sol = (bit_array *)malloc(m*m*m*sizeof(bit_array));
-  long fm[7], km[5][5][5], k2, k1, d, i, j, k, a2, b2, c2, mm = m - 1;
+  bit_array *sol = (bit_array *)malloc(64*64*64*sizeof(bit_array));
+  long fm[7], km[5][5][5], k2, k1, d, i, j, k, a2, b2, c2;
   long count = 0;
   int sq[64];
-  bit_array odd = 0, all = (m == 64) ? ~(bit_array)0 : ((1UL << m) - 1);
+  bit_array odd = 0;
   if(sol == NULL) { error(7); }
-  for(d = 1; d < m; d += 2) { odd |= (1UL << d); }
-  for(i = 0; i < m; i++) { sq[i] = 0; }
-  for(i = 0; i < m; i++) { sq[(i*i) & mm] = 1; }
-  for(i = 0; i < m*m*m; i++) { sol[i] = 0; }
-  for(k2 = 0; k2 < m; k2++)
-    for(k1 = 0; k1 < m; k1++)
-      for(d = 0; d < m; d++)
-      { long v = (k2*d*d + k1*d) & mm;
-        sol[(k2*m + k1)*m + ((m - v) & mm)] |= (1UL << d);
+  for(d = 1; d < 64; d += 2) { odd |= (1UL << d); }
+  for(i = 0; i < 64; i++) { sq[i] = 0; }
+  for(i = 0; i < 64; i++) { sq[(i*i) & 63] = 1; }
+  for(i = 0; i < 64*64*64; i++) { sol[i] = 0; }
+  for(k2 = 0; k2 < 64; k2++)
+    for(k1 = 0; k1 < 64; k1++)
+      for(d = 0; d < 64; d++)
+      { long v = (k2*d*d + k1*d) & 63;
+        sol[(k2*64 + k1)*64 + ((64 - v) & 63)] |= (1UL << d);
       }
-  for(i = 0; i <= 6; i++) { fm[i] = mpz_fdiv_ui(&coeffs[i], m); }
+  for(i = 0; i <= 6; i++) { fm[i] = mpz_fdiv_ui(&coeffs[i], 64); }
   for(i = 0; i < 5; i++) for(j = 0; j < 5; j++) for(k = 0; k < 5; k++) { km[i][j][k] = 0; }
-  km[4][0][0] = mpz_fdiv_ui(&k400, m); km[3][1][0] = mpz_fdiv_ui(&k310, m);
-  km[3][0][1] = mpz_fdiv_ui(&k301, m); km[2][2][0] = mpz_fdiv_ui(&k220, m);
-  km[2][1][1] = mpz_fdiv_ui(&k211, m); km[2][0][2] = mpz_fdiv_ui(&k202, m);
-  km[1][3][0] = mpz_fdiv_ui(&k130, m); km[1][2][1] = mpz_fdiv_ui(&k121, m);
-  km[1][1][2] = mpz_fdiv_ui(&k112, m); km[1][0][3] = mpz_fdiv_ui(&k103, m);
-  km[0][4][0] = mpz_fdiv_ui(&k040, m); km[0][3][1] = mpz_fdiv_ui(&k031, m);
-  km[0][2][2] = mpz_fdiv_ui(&k022, m); km[0][1][3] = mpz_fdiv_ui(&k013, m);
-  km[0][0][4] = mpz_fdiv_ui(&k004, m);
+  km[4][0][0] = mpz_fdiv_ui(&k400, 64); km[3][1][0] = mpz_fdiv_ui(&k310, 64);
+  km[3][0][1] = mpz_fdiv_ui(&k301, 64); km[2][2][0] = mpz_fdiv_ui(&k220, 64);
+  km[2][1][1] = mpz_fdiv_ui(&k211, 64); km[2][0][2] = mpz_fdiv_ui(&k202, 64);
+  km[1][3][0] = mpz_fdiv_ui(&k130, 64); km[1][2][1] = mpz_fdiv_ui(&k121, 64);
+  km[1][1][2] = mpz_fdiv_ui(&k112, 64); km[1][0][3] = mpz_fdiv_ui(&k103, 64);
+  km[0][4][0] = mpz_fdiv_ui(&k040, 64); km[0][3][1] = mpz_fdiv_ui(&k031, 64);
+  km[0][2][2] = mpz_fdiv_ui(&k022, 64); km[0][1][3] = mpz_fdiv_ui(&k013, 64);
+  km[0][0][4] = mpz_fdiv_ui(&k004, 64);
   *empty = 0;
-  for(a2 = 0; a2 < m; a2++)
+  for(a2 = 0; a2 < 64; a2++)
   { long ap[5], bp[5], cp[5];
-    ap[0] = 1; for(i = 1; i < 5; i++) { ap[i] = (ap[i-1]*a2) & mm; }
-    for(b2 = 0; b2 < m; b2++)
+    ap[0] = 1; for(i = 1; i < 5; i++) { ap[i] = (ap[i-1]*a2) & 63; }
+    for(b2 = 0; b2 < 64; b2++)
     { bit_array mask = 0;
-      bp[0] = 1; for(i = 1; i < 5; i++) { bp[i] = (bp[i-1]*b2) & mm; }
-      for(c2 = 0; c2 < m; c2++)
+      bp[0] = 1; for(i = 1; i < 5; i++) { bp[i] = (bp[i-1]*b2) & 63; }
+      for(c2 = 0; c2 < 64; c2++)
       { long k0 = 0, kk, A0, a3, e;
         int ok = 0;
         bit_array S;
         if(((a2 | b2 | c2) & 1) == 0) { continue; }
-        cp[0] = 1; for(i = 1; i < 5; i++) { cp[i] = (cp[i-1]*c2) & mm; }
+        cp[0] = 1; for(i = 1; i < 5; i++) { cp[i] = (cp[i-1]*c2) & 63; }
         for(i = 0; i < 5; i++)
           for(j = 0; i + j < 5; j++)
           { k = 4 - i - j;
-            k0 = (k0 + km[i][j][k]*ap[i]*bp[j]*cp[k]) & mm;
+            k0 = (k0 + km[i][j][k]*ap[i]*bp[j]*cp[k]) & 63;
           }
-        k1 = (m - ((4*ap[3]*fm[0] + 2*ap[2]*b2*fm[1] + 4*ap[2]*c2*fm[2]
-                    + 2*a2*b2*c2*fm[3] + 4*a2*cp[2]*fm[4] + 2*b2*cp[2]*fm[5]
-                    + 4*cp[3]*fm[6]) & mm)) & mm;
-        k2 = (bp[2] + m*4 - 4*a2*c2) & mm;
-        kk = (bp[2] + m*4 - a2*c2) & mm;
+        k1 = (64 - ((4*ap[3]*fm[0] + 2*ap[2]*b2*fm[1] + 4*ap[2]*c2*fm[2]
+                     + 2*a2*b2*c2*fm[3] + 4*a2*cp[2]*fm[4] + 2*b2*cp[2]*fm[5]
+                     + 4*cp[3]*fm[6]) & 63)) & 63;
+        k2 = (bp[2] + 64*4 - 4*a2*c2) & 63;
+        kk = (bp[2] + 64*4 - a2*c2) & 63;
         A0 = (fm[2]*ap[4] + fm[3]*ap[3]*b2 + fm[4]*ap[2]*bp[2] + fm[5]*a2*b2*kk
-              + fm[6]*kk*kk) & mm;
+              + fm[6]*kk*kk) & 63;
         a3 = ap[3];
         /* v odd: some d */
-        S = sol[(k2*m + k1)*m + k0];
-        for(d = 0; d < m && !ok; d++)
-        { if((S >> d) & 1) { ok = sq[(a3*d + A0) & mm]; } }
+        S = sol[(k2*64 + k1)*64 + k0];
+        for(d = 0; d < 64 && !ok; d++)
+        { if((S >> d) & 1) { ok = sq[(a3*d + A0) & 63]; } }
         /* v = 2: some odd t */
         if(!ok)
-        { S = sol[(k2*m + ((2*k1) & mm))*m + ((4*k0) & mm)] & odd;
-          for(d = 1; d < m && !ok; d += 2)
-          { if((S >> d) & 1) { ok = sq[(8*(a3*d + 2*A0)) & mm]; } }
+        { S = sol[(k2*64 + ((2*k1) & 63))*64 + ((4*k0) & 63)] & odd;
+          for(d = 1; d < 64 && !ok; d += 2)
+          { if((S >> d) & 1) { ok = sq[(8*(a3*d + 2*A0)) & 63]; } }
         }
-        /* v = 4, ..., m: some odd t, no square condition */
+        /* v = 4, ..., 64: some odd t, no square condition */
         for(e = 2; e <= 6 && !ok; e++)
-        { S = sol[(k2*m + ((k1 << e) & mm))*m + ((k0 << (2*e)) & mm)] & odd;
+        { S = sol[(k2*64 + ((k1 << e) & 63))*64 + ((k0 << (2*e)) & 63)] & odd;
           ok = (S != 0);
         }
         if(ok) { mask |= (1UL << c2); count++; }
       }
-      /* the pattern over the 64 residues of a word */
-      if(m < 64) { for(i = m; i < 64; i += m) { mask |= mask << m; } }
-      masks[a2][b2] = mask & ((m < 64) ? ~(bit_array)0 : all);
+      masks[a2][b2] = mask;
       alive[a2][b2] = (mask != 0);
       if(mask == 0) { (*empty)++; }
     }
@@ -1759,7 +1734,7 @@ void twoadic_init(void)
   /* no condition when the modulus 64 admits every class, as on the
      record curve (the modulus 16 cannot tell: on '1 6 5 22 22 8 1' it
      admits every class, the modulus 64 only 6/7 of them) */
-  count = twoadic_table(64, mask2, alive2, &empty);
+  count = twoadic_table(mask2, alive2, &empty);
   if(count == 64*64*64 - 32*32*32) { use2 = 0; return; }
   density2 = (double)count / (double)(64*64*64 - 32*32*32);
   empty2 = (double)empty / (double)(64*64);
@@ -2104,12 +2079,12 @@ void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
   free(fmt);
 }
 
-/* a point found: printed, or, with threads, appended to the buffer of
-   the unit of work in hand (see find_points) */
+/* a point found with several threads: appended to the buffer of the
+   unit of work in hand (see find_points); with one thread the callers
+   print it at once */
 static void emit(char *s)
 {
   size_t l = strlen(s);
-  if(num_threads == 1) { fputs(s, stdout); return; }
   if(olen + l + 1 > ocap)
   { ocap = 2*(olen + l + 1) + 256;
     obuf = (char *)realloc(obuf, ocap);
@@ -2337,7 +2312,6 @@ void message(long n, long total)
 {
   switch(n)
   { case 0: printf("\n%s\n", J_POINTS_VERSION); break;
-    case 1: printf("\nprob = 0, hence no solutions.\n"); break;
     case 2: printf("\nFound %ld rational points on K lifting to J.\n", tot_points);
             break;
     case 4: if(sieve_mode == 1)

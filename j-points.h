@@ -103,7 +103,7 @@ extern unsigned char alive2[64][64];
 extern int use2;         /* the condition at 2, see j-points.c */
 extern void tube_sample(double *, double *, double *, double *, double *, double *, double *);
 extern long num_neg;         /* the intervals where f is negative, see j-points.c */
-extern double neg_grown_lo[], neg_grown_hi[], neg_shrunk_lo[], neg_shrunk_hi[];
+extern double neg_shrunk_lo[], neg_shrunk_hi[];
 extern long degree;
 extern MP_INT coeffs[7];
 extern int sift_bands(long, long, long);
