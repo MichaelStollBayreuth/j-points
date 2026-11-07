@@ -186,7 +186,8 @@ typedef struct {long p; double r; long n; long np0;} entry;
 long inverses[NUM_PRIMES][MAX_PRIME_EVEN];
 /* inverses[pn][a] = b such that a*b = 1 mod p = prime[pn]; 0 < a, b < p. */
 int squares[NUM_PRIMES][MAX_PRIME];
-/* squares[pn][x] = 1 if x is a square mod prime[pn], 0 if not */
+/* squares[pn][x] = the even square root of x mod p = prime[pn] if x is a
+   square mod p, p if not */
 unsigned char has_infinity[NUM_PRIMES];
 /* has_infinity[pn] = 1 if the curve has rational points at infinity,
    0 if not */
@@ -745,7 +746,7 @@ static double rate_of(long p, long np0, double np1)
    remainder s1*x + s2 of f modulo x^2 - b*x + c gives f(x1)*f(x2) = s2^2
    + b*s1*s2 + c*s1^2 for the roots x1, x2, which must be a square t^2,
    and then one of (y1 +- y2)^2 = 2*s2 + b*s1 +- 2*t must be a square.
-   The reductions mod p by the reciprocal, see MODP in the table; every
+   The reductions mod p by the reciprocal, see MODP below; every
    operand stays below 2^24.  (The diagonal c = b^2/4 is always admitted.) */
 #define MODP(x) ((x) - p * (long)(((x) * recip) >> 32))
 static inline int point_on_j(long pn, long p, unsigned long recip,
@@ -1194,8 +1195,8 @@ void init_sieve(void)
 
 int find_double_points(void)
 { /* Find `double points', i.e. points of the form [2*P - O] */
-  /* Use a simple version of the sieve, since height will be no more
-     than ~ 100 */
+  /* Use a simple version of the sieve, since a and |b| are at most
+     sqrt(height) */
   long wheight = floor(sqrt(height));
   long a, b, n;
   struct stype {long p; long ap; unsigned char *ptr;} ssp0[NUM_PRIMES];
@@ -1466,7 +1467,7 @@ void kummer_init()
 }
 
 /* the coefficients as doubles for the analysis of the plane of (b, c);
-   what it leaves per row is sampled over a few hundred rows spread over
+   what it leaves per row is sampled over 24 bands of 64 rows spread over
    the box (deterministically), for the cost model, which then chooses
    the way to sieve */
 void tube_init(void)
@@ -1500,9 +1501,10 @@ static mpq_t sturm[7][7];      /* the chain, sturm[i][k] the coefficient of x^k 
 static long sturm_deg[7], sturm_len;
 static mpq_t root_lo[6], root_hi[6];   /* the isolating intervals, in order */
 static long num_roots;
-#define ROOT_BITS 480   /* the roots of the intervals are below 2^ROOT_BITS, so
-                           that row_region's products of a height bound and
-                           two of them stay far below DBL_MAX */
+#define ROOT_BITS 480   /* the ends of the isolating intervals lie in [-B, B], B
+                           of at most ROOT_BITS bits, so that row_region's
+                           products of a height bound and two of them stay far
+                           below DBL_MAX */
 
 static long sturm_changes(mpq_t x)
 {
@@ -1876,7 +1878,7 @@ int check_lifts(long a, long b, long c, long d)
          f(c/b) must be a square */
       if(!(mpz_cmp_si(&coeffs[6], 0) == 0 || mpz_perfect_square_p(&coeffs[6])))
         return(0);
-      /* compute entries bc[k] = coeffs[k] * b^(degree-k), k < degree */
+      /* compute entries bc[k] = coeffs[k] * b^(6-k), k < 6 */
       mpz_set_si(&tmp, 1);
       for(k = 5; k >= 0; k--)
       { mpz_mul_si(&tmp, &tmp, b);
@@ -1965,7 +1967,7 @@ int check_lifts_mpz(MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
          f(c/b) must be a square */
       if(!(mpz_cmp_si(&coeffs[6], 0) == 0 || mpz_perfect_square_p(&coeffs[6])))
         return(0);
-      /* compute entries bc[k] = coeffs[k] * b^(degree-k), k < degree */
+      /* compute entries bc[k] = coeffs[k] * b^(6-k), k < 6 */
       mpz_set_si(&tmp, 1);
       for(k = 5; k >= 0; k--)
       { mpz_mul(&tmp, &tmp, b);
@@ -2219,8 +2221,8 @@ int check_one_point_final(long a, long b, long c, MP_INT *d1, MP_INT *d2)
 int check_one_point(long a, long b, long c)
 { /* Check if there is some d such that (a : b : c : d) is a point on
      K  that lifts to J(Q). If so, print the point(s) that satisfy the
-     height bound and return 1, if we are only looking for one point,
-     else return 0. */
+     height bound; return 1 when one was printed and we are only looking
+     for one point (otherwise the result of the last d checked). */
 #ifdef VERBOSE
   printf("\n check_one_point(%ld, %ld, %ld):\n", a, b, c);
 #endif

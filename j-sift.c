@@ -62,7 +62,8 @@ typedef struct
 /* The walk of a prime p over the bit array reads its table row VW words
    at a time from any offset, so the row holds the pattern over a period
    that is a multiple of p and at least VW words, plus VW words of its
-   continuation (with VW = 1: p + 1 words, word p repeating word 0). */
+   continuation (with VW = 1: p + 1 words, word p repeating word 0, which only
+   the vector walk, VW > 1, reads). */
 long sieve_period(long p)
 { long P = p;
   while(P < VW) { P += p; }
@@ -302,7 +303,7 @@ static inline int relprime2(long n, long m)
 {
   if(n == 0) { return(m == 1); }
   if(m == 0) { return(n == 1); }
-  /* remove pwers of 2 */
+  /* remove powers of 2 */
   while(!(m & 1)) { m >>= 1; }
   while(!(n & 1)) { n >>= 1; }
   /* successively subtract the smaller from the larger
@@ -921,8 +922,8 @@ static inline void walk_parts(long n, long p, walk_spec *w, long off, long len,
     bit_array *siv1 = &rowptr[n][f1]; \
     long j; \
     for(j = hd; j; j--) { OP(*surv, *siv1); surv++; siv1++; } \
-    /* now siv1 points at the end of the table row, whose word p repeats \
-       its word 0, if there is anything left to do */ \
+    /* now siv1 points at the end of the table row (its word p, which \
+       repeats its word 0, is not read), if there is anything left to do */ \
     for(j = np; j; j--) \
     { bit_array *siv0 = siv1; \
       siv1 -= p; \
