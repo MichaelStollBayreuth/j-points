@@ -93,6 +93,9 @@
 #        -quiet was -q and -n5 7 was -n 7)
 # 68-70  -n, -M and -N with a negative number: an error (before 3.0.2 a
 #        negative number of primes was taken as 0)
+# 71-75  -c with a value that is infinite, overflows or is subnormal, with
+#        the empty string and with a final comma: an error (before 3.0.2 each
+#        was accepted, 1e-320 as 9.99989e-321)
 # The reports (39, 45, 46, 50, 59-62, 65) pin the four constants of the cost
 # model whose defaults depend on the width of the sieve's passes (VECTOR) to
 # the scalar build's values with -c, since they name the primes chosen: the
@@ -180,3 +183,8 @@ e '1 2 3 4 5 6 7' 100 -n5 7
 e '1 2 3 4 5 6 7' 100 -n -1
 e '1 2 3 4 5 6 7' 100 -M -2
 e '1 2 3 4 5 6 7' 100 -N -1
+e '21 116 171 128 55 12 1' 100 -c AND=inf
+e '21 116 171 128 55 12 1' 100 -c AND=1e999
+e '21 116 171 128 55 12 1' 100 -c AND=1e-320
+e '21 116 171 128 55 12 1' 100 -c ''
+e '21 116 171 128 55 12 1' 100 -c AND=0.63,

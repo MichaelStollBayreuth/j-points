@@ -1107,3 +1107,33 @@ Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
                 [-w bound4] [-c constants] [-1] [-q] [-a]
+# <21 116 171 128 55 12 1> <100> <-c> <AND=inf>
+
+The argument of -c must be NAME=value, or several of them separated
+by commas, with a positive value and one of the names
+ AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
+
+# <21 116 171 128 55 12 1> <100> <-c> <AND=1e999>
+
+The argument of -c must be NAME=value, or several of them separated
+by commas, with a positive value and one of the names
+ AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
+
+# <21 116 171 128 55 12 1> <100> <-c> <AND=1e-320>
+
+The argument of -c must be NAME=value, or several of them separated
+by commas, with a positive value and one of the names
+ AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
+
+# <21 116 171 128 55 12 1> <100> <-c> <>
+
+The argument of -c must be NAME=value, or several of them separated
+by commas, with a positive value and one of the names
+ AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
+
+# <21 116 171 128 55 12 1> <100> <-c> <AND=0.63,>
+
+The argument of -c must be NAME=value, or several of them separated
+by commas, with a positive value and one of the names
+ AND SIZE WORD TEST2 BIT ROW3 TEST3 EXACT ROW CELL TWORD TTEST TROW RROW REXCL RCUT RANGE PASS TABLE INIT.
+

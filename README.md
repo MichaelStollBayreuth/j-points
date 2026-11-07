@@ -108,7 +108,9 @@ option that takes one is the next word (`-n 5`, not `-n5`).
 + `-c constants`: constants of the cost model that chooses the sieving
   primes, their stages and the mode of the sieve, as `NAME=value`, several
   separated by commas, the names those of the `COST_` constants of j-points.c
-  without the prefix (`-c CELL=640,AND=0.45`); the run's report lists them.
+  without the prefix (`-c CELL=640,AND=0.45`), each value a positive normal
+  double as `strtod` reads it (not infinite, and neither overflowing nor
+  underflowing); the run's report lists them.
   For experiments with the model and for `make tune`. `j-points -c list`
   alone prints the constants in force in the build.
 + `-1`: stop as soon as one point has been found.

@@ -384,11 +384,13 @@ int main(int argc, char *argv[])
  **************************************************************************/
 
 /* The argument of -c: NAME=value, several separated by commas, the names
-   those of the COST_ constants without the prefix, the values positive;
-   0 if it is not of that form */
+   those of the COST_ constants without the prefix, the values positive
+   normal doubles as strtod reads them (no infinity, no overflow or
+   underflow); 0 if it is not of that form, as the empty string and a
+   final comma are not */
 static int set_costs(char *s)
 {
-  while(*s)
+  for(;;)
   { char *eq = strchr(s, '='), *end;
     size_t k;
     double v;
@@ -397,15 +399,17 @@ static int set_costs(char *s)
     { if(strlen(cost_names[k].name) == (size_t)(eq - s)
          && strncmp(cost_names[k].name, s, eq - s) == 0) { break; } }
     if(k == NUM_COSTS) { return(0); }
+    errno = 0;
     v = strtod(eq + 1, &end);
-    if(end == eq + 1 || !(v > 0.0) || (*end != '\0' && *end != ','))
+    if(end == eq + 1 || errno == ERANGE || !(v > 0.0) || !isnormal(v)
+       || (*end != '\0' && *end != ','))
     { return(0); }
     *cost_names[k].value = v;
     cost_names[k].set = 1;
     costs_set = 1;
-    s = (*end == ',') ? end + 1 : end;
+    if(*end == '\0') { return(1); }
+    s = end + 1;   /* a comma: another NAME=value follows */
   }
-  return(1);
 }
 
 void read_input(long argc, char *argv[])
