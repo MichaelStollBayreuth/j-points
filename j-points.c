@@ -443,21 +443,21 @@ void read_input(long argc, char *argv[])
           if(argc == i) error(6);
           i++;
           if(!scan_long(argv[i], &sieve_primes1)) error(6);
-          if(sieve_primes1 < 0) sieve_primes1 = 0;
+          if(sieve_primes1 < 0) error(6);
           i++;
           break;
         case 'M': /* number of primes used for the first two stages */
           if(argc == i) error(6);
           i++;
           if(!scan_long(argv[i], &sieve_primes2)) error(6);
-          if(sieve_primes2 < 0) sieve_primes2 = 0;
+          if(sieve_primes2 < 0) error(6);
           i++;
           break;
         case 'N': /* number of primes used for sieving altogether */
           if(argc == i) error(6);
           i++;
           if(!scan_long(argv[i], &sieve_primes3)) error(6);
-          if(sieve_primes3 < 0) sieve_primes3 = 0;
+          if(sieve_primes3 < 0) error(6);
           i++;
           break;
         case 's': /* size of survivors array in kbytes */

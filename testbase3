@@ -1080,3 +1080,30 @@ Usage: j-points 'a_0 a_1 ... a_d' max_height
                 [-n num_primes1] [-M num_primes2] [-N num_primes3]
                 [-p num_primes] [-s size] [-t threads] [-f format]
                 [-w bound4] [-c constants] [-1] [-q] [-a]
+# <1 2 3 4 5 6 7> <100> <-n> <-1>
+
+Wrong syntax for optional arguments:
+
+
+Usage: j-points 'a_0 a_1 ... a_d' max_height
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
+# <1 2 3 4 5 6 7> <100> <-M> <-2>
+
+Wrong syntax for optional arguments:
+
+
+Usage: j-points 'a_0 a_1 ... a_d' max_height
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-w bound4] [-c constants] [-1] [-q] [-a]
+# <1 2 3 4 5 6 7> <100> <-N> <-1>
+
+Wrong syntax for optional arguments:
+
+
+Usage: j-points 'a_0 a_1 ... a_d' max_height
+                [-n num_primes1] [-M num_primes2] [-N num_primes3]
+                [-p num_primes] [-s size] [-t threads] [-f format]
+                [-w bound4] [-c constants] [-1] [-q] [-a]

@@ -67,16 +67,16 @@ The optional arguments, which can be given in any order, are these. Each
 option is a word of two characters (`-q`, not `-quiet`), and the value of an
 option that takes one is the next word (`-n 5`, not `-n5`).
 
-+ `-n num_primes1`: the number of primes used for the first sieving stage.
-  By default it is chosen automatically, like the primes themselves (see
-  below). A plain run that sieves in the tube (see below) has no first
-  stage, and `-n` does nothing then.
-+ `-M num_primes2`: the number of primes used for the first two sieving
-  stages together. By default it is chosen automatically.
-+ `-N num_primes3`: the number of primes used for all three sieving stages
-  together. By default it is chosen automatically. With `-N 0` there is no
-  sieving at all: every coprime triple is checked exactly, which is slow but
-  independent of the sieve.
++ `-n num_primes1`: the number of primes, 0 or more, used for the first
+  sieving stage. By default it is chosen automatically, like the primes
+  themselves (see below). A plain run that sieves in the tube (see below)
+  has no first stage, and `-n` does nothing then.
++ `-M num_primes2`: the number of primes, 0 or more, used for the first two
+  sieving stages together. By default it is chosen automatically.
++ `-N num_primes3`: the number of primes, 0 or more, used for all three
+  sieving stages together. By default it is chosen automatically. With
+  `-N 0` there is no sieving at all: every coprime triple is checked
+  exactly, which is slow but independent of the sieve.
 + `-p num_primes`: the number of primes, from the beginning of the table
   3, 5, 7, ..., 251, among which the sieving primes are chosen (default and
   maximum 53). Sieve tables, for the first two stages, are made only for the
