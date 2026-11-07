@@ -203,9 +203,11 @@ void init_sift(void)
 }
 
 /* the state of the calling thread: the bit array (aligned for the
-   vector walk and padded by a vector) and the lists of the tube's bands */
+   vector walk and padded by a vector) and the lists of the tube's bands;
+   the arrays of an earlier call of the thread are freed */
 void init_thread_sieve(void)
 {
+  free(survivors); free(band_nr); free(band_rg);
   survivors = (bit_array *)aligned_alloc(64, ((array_size + VW)*sizeof(bit_array) + 63)/64*64);
   band_nr = (long *)malloc(TUBE_BAND*sizeof(long));
   band_rg = malloc(TUBE_BAND*2*TUBE_RANGES*sizeof(long));
@@ -434,7 +436,7 @@ static inline int check_point(bit_array nums, long a, long b, long i,
 static _Thread_local double K0[NC], K1[NC], K2[NC], KA[NC];
 static _Thread_local long tube_a;   /* the current a */
 static _Thread_local int tube_ok;   /* whether the analysis may decide, see below */
-static long tube_ncells;
+static _Thread_local long tube_ncells;
 
 static inline double tube_eval(double *, long, double, double);
 static void tube_a_init(long a)
