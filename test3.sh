@@ -78,6 +78,12 @@
 #        the box is searched (before 3.0.2 the report announced the mode the
 #        cost model chose, here the tube with the condition at 2 and the tube
 #        cut to the real region); 61 stops at the point over (0, 0, 1) (-1)
+# 63-64  -f with flags that gmp_printf reads otherwise than printf (+ with a
+#        space, 0 with a precision, - with 0, a lone . as the precision) in
+#        the gmp path of -a, with one thread (gmp_printf) and with two
+#        (gmp_asprintf): every point in the style of printf (before 3.0.2 the
+#        point beyond a machine word printed as [ 0|00000000|10000|...], its
+#        third coordinate 1 padded with zeros on the right)
 # The reports (39, 45, 46, 50, 59-62) pin the four constants of the cost
 # model whose defaults depend on the width of the sieve's passes (VECTOR) to
 # the scalar build's values with -c, since they name the primes chosen: the
@@ -157,3 +163,5 @@ f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 10 -1 -c AND=0.63,SIZE=756,TEST2
 f "grep -v '^This is j-points'" '1 0 0 0 0 0 2' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
 f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 500 -N 0 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
 f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 60 -n 0 -N 0 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 1 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
+f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 2 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'

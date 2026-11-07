@@ -1018,3 +1018,7 @@ Constants of the cost model set by -c: AND=0.63 SIZE=756 TEST2=5.6 TTEST=2
 732609 candidates survived the third stage.
 
 Found 6 rational points on K lifting to J.
+# <1 1 1 1 1 30000000000 1> <20> <-a> <-q> <-t> <1> <-f> <[%+ ld|%08.3ld|%-05ld|%.ld]> | cat; echo
+[+0|     000|1    |224999999999999999999][+4|     000|0    |-3][+0|     001|0    |2][+0|     001|0    |-2]
+# <1 1 1 1 1 30000000000 1> <20> <-a> <-q> <-t> <2> <-f> <[%+ ld|%08.3ld|%-05ld|%.ld]> | cat; echo
+[+0|     000|1    |224999999999999999999][+4|     000|0    |-3][+0|     001|0    |2][+0|     001|0    |-2]

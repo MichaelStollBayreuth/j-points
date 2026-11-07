@@ -2035,21 +2035,58 @@ int check_lifts_mpz(MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
   }
 }
 
+/* the flags, the width and the precision of a conversion %ld of the
+   format of -f, from s up to e (its l), written to d as gmp_printf must
+   read them to print as printf does: gmp_printf takes the last of + and a
+   space where printf lets + win, pads with 0 on the right after - and
+   keeps the 0 with a precision where printf drops it, and reads a lone .
+   as no precision where printf reads the precision 0 (.0 is read alike);
+   returns the length written, at most e - s + 1 */
+static size_t gmp_spec(char *d, const char *s, const char *e)
+{
+  const char *f, *w, *p;
+  int minus = 0, plus = 0;
+  size_t n = 0;
+  for(f = s; f < e && strchr("-+ #'0", *f) != NULL; f++)
+  { if(*f == '-') { minus = 1; }
+    if(*f == '+') { plus = 1; }
+  }
+  for(w = f; w < e && '0' <= *w && *w <= '9'; w++) ;
+  p = w;
+  if(p < e && *p == '.') { for(p++; p < e && '0' <= *p && *p <= '9'; p++) ; }
+  /* not flags, a width and a precision: as it is */
+  if(p != e) { memcpy(d, s, e - s); return(e - s); }
+  for(p = s; p < f; p++)
+  { if((*p == ' ' && plus) || (*p == '0' && (minus || w < e))) { continue; }
+    d[n++] = *p;
+  }
+  memcpy(d + n, f, e - f); n += e - f;
+  if(e - w == 1) { d[n++] = '0'; }   /* a lone . */
+  return(n);
+}
+
 void printf_mpz(const char *format, MP_INT *a, MP_INT *b, MP_INT *c, MP_INT *d)
 { /* print the four coordinates with the user's format, in which each
      conversion %ld, with its flags, width and precision, becomes the %Zd
-     of gmp_printf (of the same length), and %% stays */
-  size_t l = strlen(format), i, k;
-  char *fmt = malloc(l + 1);
+     of gmp_printf (its flags as printf reads them, see gmp_spec), and %%
+     stays */
+  size_t l = strlen(format), i, j = 0, k;
+  char *fmt = malloc(2*l + 1);
   if(fmt == NULL) { error(7); }
-  memcpy(fmt, format, l + 1);
   for(i = 0; i < l; i++)
-  { if(fmt[i] != '%') { continue; }
-    if(fmt[i+1] == '%') { i++; continue; }
-    for(k = i + 1; fmt[k] != 0 && strchr("-+ #'0123456789.", fmt[k]) != NULL; k++) ;
-    if(fmt[k] == 'l' && fmt[k+1] == 'd') { fmt[k] = 'Z'; }
+  { fmt[j++] = format[i];
+    if(format[i] != '%') { continue; }
+    if(format[i+1] == '%') { fmt[j++] = '%'; i++; continue; }
+    for(k = i + 1; format[k] != 0 && strchr("-+ #'0123456789.", format[k]) != NULL; k++) ;
+    if(format[k] == 'l' && format[k+1] == 'd')
+    { j += gmp_spec(fmt + j, format + i + 1, format + k); fmt[j++] = 'Z'; }
+    else
+    { memcpy(fmt + j, format + i + 1, k - i - 1); j += k - i - 1;
+      if(format[k] != 0) { fmt[j++] = format[k]; }
+    }
     i = k;
   }
+  fmt[j] = 0;
   /* the point of the curve given, its first nonzero coordinate positive */
   if(reversed) { MP_INT *x = a; a = c; c = x; }
   if(negated) { mpz_neg(b, b); }
