@@ -1878,7 +1878,7 @@ int check_lifts(long a, long b, long c, long d)
       /* compute entries bc[k] = coeffs[k] * b^(degree-k), k < degree */
       mpz_set_si(&tmp, 1);
       for(k = 5; k >= 0; k--)
-      { mpz_mul_ui(&tmp, &tmp, (unsigned long)b);
+      { mpz_mul_si(&tmp, &tmp, b);
         mpz_mul(&bc[k], &coeffs[k], &tmp);
       }
       /* now compute b^6*f(c/b) = f6*c^6 + f5*c^5*b + ... + f0*b^6 */
