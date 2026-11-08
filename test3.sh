@@ -67,9 +67,44 @@
 #        3.0.1): the size is cut to the bit array
 # 57     -f with flags, a width and %% in the gmp path of -a (before 3.0.1
 #        only a bare %ld was passed to gmp, and a width printed a pointer)
-# The reports (39, 45, 46, 50) pin the four constants of the cost model
-# whose defaults depend on the width of the sieve's passes (VECTOR) to the
-# scalar build's values with -c, since they name the primes chosen: the
+# 58     a height bound above 2^26: an error (before 3.0.2 heights up to
+#        3037000499 were accepted, at which the real region could lose points)
+# 59-60  -1 with the first point found before the units of work, in the
+#        report of a run that is not -q: the point over (0, 0, 1), a double
+#        point (before 3.0.2 the report printed it and then "Found 0
+#        rational points")
+# 61-62  -N 0, no sieving at all, in the report of a run that is not -q:
+#        neither a mode of the sieve nor the condition at 2 is announced, as
+#        the box is searched (before 3.0.2 the report announced the mode the
+#        cost model chose, here the tube with the condition at 2 and the tube
+#        cut to the real region); 61 stops at the point over (0, 0, 1) (-1)
+# 63-64  -f with flags that gmp_printf reads otherwise than printf (+ with a
+#        space, 0 with a precision, - with 0, a lone . as the precision) in
+#        the gmp path of -a, with one thread (gmp_printf) and with two
+#        (gmp_asprintf): every point in the style of printf (before 3.0.2 the
+#        point beyond a machine word printed as [ 0|00000000|10000|...], its
+#        third coordinate 1 padded with zeros on the right)
+# 65     the report of a run on a curve where the modulus 16 admits every
+#        class of the condition at 2 and the modulus 64 only 6/7 of them:
+#        the condition at 2 is used (before 3.0.2 it was given up whenever
+#        the modulus 16 admitted every class)
+# 66-67  an option word that is not two characters long: an error (before
+#        3.0.2 an option was recognised by its second character, so that
+#        -quiet was -q and -n5 7 was -n 7)
+# 68-70  -n, -M and -N with a negative number: an error (before 3.0.2 a
+#        negative number of primes was taken as 0)
+# 71-75  -c with a value that is infinite, overflows or is subnormal, with
+#        the empty string and with a final comma: an error (before 3.0.2 each
+#        was accepted, 1e-320 as 9.99989e-321)
+# 76-78  the coefficients: a sign without a digit after it, or a number
+#        followed by something other than a blank, is an error (before 3.0.2
+#        '1-6 5 22 22 8 1' was the sextic with the coefficients 1, -6, 5, ...,
+#        and a lone sign was read as 0, so that '1 6 5 22 22 8 -' was a
+#        quintic); tabs separate the coefficients like spaces (before 3.0.2 a
+#        tab was an error)
+# The reports (39, 45, 46, 50, 59-62, 65) pin the four constants of the cost
+# model whose defaults depend on the width of the sieve's passes (VECTOR) to
+# the scalar build's values with -c, since they name the primes chosen: the
 # reference is then the same for every build.
 JP=${JP:-./j-points}
 # no program to run: exit 2 (the comparison with the reference is make's,
@@ -81,8 +116,9 @@ JPOPTS=${JPOPTS:-}
 t() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@" $JPOPTS | LC_ALL=C sort; }
 # the same, with the output run through a filter (the first argument)
 f() { filter=$1; shift; printf '#'; for a; do printf ' <%s>' "$a"; done; printf ' | %s\n' "$filter"; "$JP" "$@" $JPOPTS | eval "$filter"; }
-# an invocation that is expected to fail: no $JPOPTS, output unsorted
-e() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@"; }
+# an invocation that is expected to fail: no $JPOPTS, output unsorted, its
+# exit status not that of the script
+e() { printf '#'; for a; do printf ' <%s>' "$a"; done; echo; "$JP" "$@"; return 0; }
 t '1 178 817 -274 16 1' 20 -q -a
 t '21 116 171 128 55 12 1' 20 -q -a
 t '3 -1 2 5 -4 1 4' 20 -q -a
@@ -140,3 +176,24 @@ t '21 116 171 128 55 12 1' 20 -q -t 1000000000
 e '21 116 171 128 55 12 1' 100 -w 1000000000000000000000000000000
 t '21 116 171 128 55 12 1' 100 -q -s 72057594037927936
 f 'cat; echo' '0 400000000000000000000 -200000000060000000000 -399999999969999999998 200000000059999999999 -30000000002 1' 10 -q -a -f '[%24ld|%-3ld|%+ld|%ld] %%;'
+e '1 2 3 4 5 6 7' 67108865
+f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '1 0 0 0 0 0 2' 10 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '1 0 0 0 0 0 1' 500 -N 0 -1 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f "grep -v '^This is j-points'" '21 116 171 128 55 12 1' 60 -n 0 -N 0 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 1 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
+f 'cat; echo' '1 1 1 1 1 30000000000 1' 20 -a -q -t 2 -f '[%+ ld|%08.3ld|%-05ld|%.ld]'
+f "grep -v '^This is j-points'" '1 6 5 22 22 8 1' 500 -c AND=0.63,SIZE=756,TEST2=5.6,TTEST=2
+e '1 2 3 4 5 6 7' 100 -quiet
+e '1 2 3 4 5 6 7' 100 -n5 7
+e '1 2 3 4 5 6 7' 100 -n -1
+e '1 2 3 4 5 6 7' 100 -M -2
+e '1 2 3 4 5 6 7' 100 -N -1
+e '21 116 171 128 55 12 1' 100 -c AND=inf
+e '21 116 171 128 55 12 1' 100 -c AND=1e999
+e '21 116 171 128 55 12 1' 100 -c AND=1e-320
+e '21 116 171 128 55 12 1' 100 -c ''
+e '21 116 171 128 55 12 1' 100 -c AND=0.63,
+e '1-6 5 22 22 8 1' 100
+e '1 6 5 22 22 8 -' 100
+t "$(printf '1\t178 817\t-274 16 1')" 20 -q

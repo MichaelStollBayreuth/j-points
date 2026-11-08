@@ -1,4 +1,4 @@
-#   j-points-3.0.1
+#   j-points-3.0.2
 #    - A program to find rational points on Jacobians of genus 2 curves
 #   Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll
 #
@@ -27,7 +27,10 @@ INSTALL = cp
 
 INSTALL_DIR = /usr/local
 
-CCFLAGS0 = -Wall -O2 -fomit-frame-pointer -pthread
+# -ffp-contract=off: each operation on doubles rounds by itself, as written
+# (gcc fuses a*b + c into one multiply-add where the target has one, and the
+# margins of the real region and of the tube count each rounding)
+CCFLAGS0 = -Wall -O2 -fomit-frame-pointer -pthread -ffp-contract=off
 CCFLAGS =
 # The width of the sieve's passes, in words (see VW in j-points.h): the
 # default is the scalar walk; "make VECTOR=avx2" builds the passes with
@@ -67,7 +70,7 @@ TUNEFLAGS =
 endif
 endif
 
-VERSION = 3.0.1
+VERSION = 3.0.2
 
 # Files that make up the distribution
 DISTFILES = Makefile j-points.h j-points.c j-sift.c README.md CHANGE_LOG.md gpl-2.0.txt \

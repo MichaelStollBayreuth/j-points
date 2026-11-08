@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-3.0.1                                                      *
+ * j-points-3.0.2                                                      *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -62,7 +62,8 @@ typedef struct
 /* The walk of a prime p over the bit array reads its table row VW words
    at a time from any offset, so the row holds the pattern over a period
    that is a multiple of p and at least VW words, plus VW words of its
-   continuation (with VW = 1: p + 1 words, word p repeating word 0). */
+   continuation (with VW = 1: p + 1 words, word p repeating word 0, which only
+   the vector walk, VW > 1, reads). */
 long sieve_period(long p)
 { long P = p;
   while(P < VW) { P += p; }
@@ -203,9 +204,11 @@ void init_sift(void)
 }
 
 /* the state of the calling thread: the bit array (aligned for the
-   vector walk and padded by a vector) and the lists of the tube's bands */
+   vector walk and padded by a vector) and the lists of the tube's bands;
+   the arrays of an earlier call of the thread are freed */
 void init_thread_sieve(void)
 {
+  free(survivors); free(band_nr); free(band_rg);
   survivors = (bit_array *)aligned_alloc(64, ((array_size + VW)*sizeof(bit_array) + 63)/64*64);
   band_nr = (long *)malloc(TUBE_BAND*sizeof(long));
   band_rg = malloc(TUBE_BAND*2*TUBE_RANGES*sizeof(long));
@@ -276,7 +279,7 @@ static inline int check_bits(bit_array nums, long a, long b, long i,
 {
   long c;
   /* c will be the coordinate corresponding to the selected bit */
-  for(c = i<<LONG_SHIFT; nums; nums >>= 1, c++)
+  for(c = i*(long)LONG_LENGTH; nums; nums >>= 1, c++)
   {/* test one bit */
     if(nums & 1)
     { num_surv2++;
@@ -300,7 +303,7 @@ static inline int relprime2(long n, long m)
 {
   if(n == 0) { return(m == 1); }
   if(m == 0) { return(n == 1); }
-  /* remove pwers of 2 */
+  /* remove powers of 2 */
   while(!(m & 1)) { m >>= 1; }
   while(!(n & 1)) { n >>= 1; }
   /* successively subtract the smaller from the larger
@@ -405,9 +408,11 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    the Taylor expansion sum p_jk s^j t^k at the centre (bm, cm), |s| <=
    rb, |t| <= rc, the value keeps the sign of p_00 throughout when
    |p_00| > sum' |p_jk| rb^j rc^k; the rounding errors of the
-   coefficients, which may cancel, are covered by TUBE_EPS times the
-   absolute polynomial at (|bm| + rb, |cm| + rc), so that no word that
-   can hold a point is lost.  An undecided cell is halved, in rows or in
+   coefficients and of the sums, which may cancel, are covered by
+   TUBE_EPS times the absolute polynomial at (|bm| + rb, |cm| + rc), so
+   that no word that can hold a point is lost: with every rounding
+   counted, a margin of 2^-47 times it suffices, and 2^-44 leaves a
+   factor 8.  An undecided cell is halved, in rows or in
    words, until it is at most TUBE_ROWS rows by one word; that word is
    then collected for each of its rows, as the words of a cell taken
    whole are.
@@ -419,7 +424,7 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    check -- or the region -- the passes of the box sieve run over the
    ranges of words of the real region. */
 
-#define TUBE_EPS 1.5e-5   /* each coefficient with a margin of 1e-6 */
+#define TUBE_EPS 0x1p-44  /* the margin, relative to the absolute polynomial */
 #define TUBE_BIG 1.0e300  /* the scale beyond which nothing is decided */
 #define TUBE_ROWS 64      /* rows of a leaf cell (16 to 128 measured much the same) */
 #define L 5               /* the row length of a coefficient array (degree at most 4) */
@@ -430,9 +435,8 @@ static inline int check_point(bit_array nums, long a, long b, long i,
    k2 (2), and the absolute values of the coefficients of |k0| + W |k1| +
    W^2 |k2|, the scale of the errors */
 static _Thread_local double K0[NC], K1[NC], K2[NC], KA[NC];
-static _Thread_local long tube_a;   /* the current a */
 static _Thread_local int tube_ok;   /* whether the analysis may decide, see below */
-static long tube_ncells;
+static _Thread_local long tube_ncells;
 
 static inline double tube_eval(double *, long, double, double);
 static void tube_a_init(long a)
@@ -459,7 +463,6 @@ static void tube_a_init(long a)
      below TUBE_BIG none of them can overflow; beyond it, or when a
      coefficient is not finite, tube_cell decides nothing */
   tube_ok = (tube_eval(KA, 4, (double)height, (double)(height + LONG_LENGTH)) < TUBE_BIG);
-  tube_a = a;
   return;
 }
 
@@ -596,15 +599,12 @@ static inline double tube_eval(double *QA, long deg, double x, double y)
   return(sum);
 }
 
-/* the sign of a polynomial throughout the cell: 1 or -1 when the bounds
-   show it, else 0; *hi bounds its absolute value, err is the margin for
-   the rounding errors */
-static inline int poly_sign(double *Q, long deg, double *rp, double err,
-                            double *lo, double *hi)
+/* the sign of a polynomial Q shifted to the centre of the cell
+   throughout the cell: 1 or -1 when the bound dev on |Q - Q[0]| there
+   shows it, else 0 */
+static inline int poly_sign(double *Q, double dev)
 {
-  double s = tube_sum(Q, deg, rp) + err;
-  *lo = fabs(Q[0]) - s; *hi = fabs(Q[0]) + s;
-  if(*lo > 0.0) { return((Q[0] > 0.0) ? 1 : -1); }
+  if(fabs(Q[0]) - dev > 0.0) { return((Q[0] > 0.0) ? 1 : -1); }
   return(0);
 }
 
@@ -635,7 +635,7 @@ static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
   double cm = 32.0*(double)(i_lo + i_hi) - 0.5;
   double rc = 32.0*(double)(i_hi - i_lo) - 0.5;
   double fb = fabs(bm) + rb, fc = fabs(cm) + rc;   /* the far corner */
-  double ma, lo2, hi2, lop, hip, lom, him, err, m[NC];
+  double ma, err, d2, m[NC];
   int s2, sp, sm, inside;
   long j, k;
   tube_ncells++;
@@ -660,21 +660,25 @@ static void tube_cell(long b_lo, long b_hi, long i_lo, long i_hi)
      that bounds each of them */
   ma = tube_eval(KA, 4, fb, fc);
   err = TUBE_EPS*ma;
-  s2 = poly_sign(p2, 2, rp, err/th2, &lo2, &hi2);   /* the sign of k2 */
+  /* the bounds on |Q - Q[0]| over the cell: tube_sum, with the margin
+     for the rounding errors */
+  d2 = tube_sum(p2, 2, rp) + err/th2;
+  s2 = poly_sign(p2, d2);   /* the sign of k2 */
   for(j = 0; j < NC; j++)
   { q[j] = p0[j] + th*p1[j] + th2*p2[j];    /* Q(W) */
     m[j] = p0[j] - th*p1[j] + th2*p2[j];    /* Q(-W) */
   }
-  sp = poly_sign(q, 4, rp, err, &lop, &hip);
-  sm = poly_sign(m, 4, rp, err, &lom, &him);
+  sp = poly_sign(q, tube_sum(q, 4, rp) + err);
+  sm = poly_sign(m, tube_sum(m, 4, rp) + err);
   /* a sign change of Q between -W and W throughout: a root inside */
   inside = (sp != 0 && sm != 0 && sp != sm);
   if(sp != 0 && sm != 0 && sp == sm)
   { /* the same sign throughout: both roots inside, or none; out when k2
        has the other sign, or |k1| > 2 W |k2|, throughout */
-    double lo1, hi1;
+    double lo1, hi2;
     if(s2 != 0 && s2 != sp) { return; }
-    poly_sign(p1, 3, rp, err/th, &lo1, &hi1);
+    lo1 = fabs(p1[0]) - (tube_sum(p1, 3, rp) + err/th);   /* |k1| at least */
+    hi2 = fabs(p2[0]) + d2;                              /* |k2| at most */
     if(lo1 > 2.0*th*hi2) { return; }
   }
   /* the condition holds throughout: the cell whole */
@@ -917,8 +921,8 @@ static inline void walk_parts(long n, long p, walk_spec *w, long off, long len,
     bit_array *siv1 = &rowptr[n][f1]; \
     long j; \
     for(j = hd; j; j--) { OP(*surv, *siv1); surv++; siv1++; } \
-    /* now siv1 points at the end of the table row, whose word p repeats \
-       its word 0, if there is anything left to do */ \
+    /* now siv1 points at the end of the table row (its word p, which \
+       repeats its word 0, is not read), if there is anything left to do */ \
     for(j = np; j; j--) \
     { bit_array *siv0 = siv1; \
       siv1 -= p; \

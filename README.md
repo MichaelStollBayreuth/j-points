@@ -1,6 +1,15 @@
 # j-points
 
-A program that finds rational points on the Jacobian of a curve of genus 2,
+## The j-points command-line program
+
+This is a program that uses an optimized quadratic sieve algorithm in order
+to find rational points on Jacobian varieties of curves of genus 2.
+
+The program is distributed under the GNU GPL, version 2 (or later).
+
+## Overview
+
+The program finds rational points on the Jacobian of a curve of genus 2,
 given as y^2 = f(x) with f of degree 5 or 6 with integral coefficients, up to
 a bound on the naive height of their images on the Kummer surface. It sieves
 the triples of the first three Kummer coordinates modulo small primes, in the
@@ -47,6 +56,35 @@ points is a port of j-points and is not used as a reference.
 
 Please acknowledge use of the program in published work.
 
+## Change log
+
+The current version is **j-points-3.0.2** from November 8, 2026.
+
+The history of the versions, with the changes and their reasons, is in
+[CHANGE_LOG.md](CHANGE_LOG.md).
+
+### AI Declaration
+
+The improvements leading to versions 2.1 and later were worked out,
+implemented and measured by Claude Code, with the decisions taken by myself.
+The bug fixes and improvements in version 3.0.2 are informed by the work
+on the verification in Lean (see below), which was also done by
+Claude Code under my guidance.
+
+## Verification in Lean
+
+[JPointsLean](https://github.com/MichaelStollBayreuth/JPointsLean) is a
+model of j-points 3.0.2 in Lean 4 that mirrors the C code function by
+function, with the same loops, tables and bit arrays, together with proofs
+that the model meets a short specification: it finds exactly the points on
+the Kummer surface up to the height bound that come from rational points on
+the Jacobian, each once, in the order in which j-points finds them. Since
+Lean has no semantics of C, the model is linked to the C code by a record of
+which Lean definition models which lines of C, checked against this
+repository, and by differential tests against this program. The
+[blueprint](https://michaelstollbayreuth.github.io/JPointsLean/blueprint/)
+explains what is verified and what one has to trust.
+
 ## Usage
 
     j-points 'a_0 a_1 ... a_d' h [-n num_primes1] [-M num_primes2] [-N num_primes3]
@@ -57,23 +95,28 @@ where
 
 + f(x) = a_d x^d + ... + a_1 x + a_0 with d = 5 or 6 (zero leading
   coefficients are dropped); f must be squarefree, which the program checks;
+  the coefficients are integers in decimal, each an optional sign directly
+  followed by digits, separated by spaces or tabs;
 + h is the bound on the naive height: the program finds the points
   (a : b : c : d) on the Kummer surface, with coprime integral coordinates,
-  that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. On a machine
-  with 64-bit longs, h can be at most 3037000499.
+  that lift to the Jacobian and satisfy |a|, |b|, |c|, |d| <= h. It can be at
+  most 2^26 = 67108864: beyond it the doubles of the sieve in the real region
+  can round past their margins.
 
-The optional arguments, which can be given in any order, are these.
+The optional arguments, which can be given in any order, are these. Each
+option is a word of two characters (`-q`, not `-quiet`), and the value of an
+option that takes one is the next word (`-n 5`, not `-n5`).
 
-+ `-n num_primes1`: the number of primes used for the first sieving stage.
-  By default it is chosen automatically, like the primes themselves (see
-  below). A plain run that sieves in the tube (see below) has no first
-  stage, and `-n` does nothing then.
-+ `-M num_primes2`: the number of primes used for the first two sieving
-  stages together. By default it is chosen automatically.
-+ `-N num_primes3`: the number of primes used for all three sieving stages
-  together. By default it is chosen automatically. With `-N 0` there is no
-  sieving at all: every coprime triple is checked exactly, which is slow but
-  independent of the sieve.
++ `-n num_primes1`: the number of primes, 0 or more, used for the first
+  sieving stage. By default it is chosen automatically, like the primes
+  themselves (see below). A plain run that sieves in the tube (see below)
+  has no first stage, and `-n` does nothing then.
++ `-M num_primes2`: the number of primes, 0 or more, used for the first two
+  sieving stages together. By default it is chosen automatically.
++ `-N num_primes3`: the number of primes, 0 or more, used for all three
+  sieving stages together. By default it is chosen automatically. With
+  `-N 0` there is no sieving at all: every coprime triple is checked
+  exactly, which is slow but independent of the sieve.
 + `-p num_primes`: the number of primes, from the beginning of the table
   3, 5, 7, ..., 251, among which the sieving primes are chosen (default and
   maximum 53). Sieve tables, for the first two stages, are made only for the
@@ -105,7 +148,9 @@ The optional arguments, which can be given in any order, are these.
 + `-c constants`: constants of the cost model that chooses the sieving
   primes, their stages and the mode of the sieve, as `NAME=value`, several
   separated by commas, the names those of the `COST_` constants of j-points.c
-  without the prefix (`-c CELL=640,AND=0.45`); the run's report lists them.
+  without the prefix (`-c CELL=640,AND=0.45`), each value a positive normal
+  double as `strtod` reads it (not infinite, and neither overflowing nor
+  underflowing); the run's report lists them.
   For experiments with the model and for `make tune`. `j-points -c list`
   alone prints the constants in force in the build.
 + `-1`: stop as soon as one point has been found.
@@ -244,12 +289,7 @@ runs grow with the cube of the height bound, the plain runs in the tube
 less. The threads (`-t`) divide these times by up to the number of cores, as
 the change log records.
 
-## Change log
-
-The history of the versions, with their measurements, is in
-[CHANGE_LOG.md](CHANGE_LOG.md).
-
-Michael Stoll, October 1998 - September 2026.
+Michael Stoll, October 1998 - November 2026.
 
 Copyright (C) 1998-2026 Michael Stoll. Distributed under the GNU GPL, version 2
 or (at your option) any later version; see gpl-2.0.txt.

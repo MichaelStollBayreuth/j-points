@@ -1,5 +1,5 @@
 /***********************************************************************
- * j-points-3.0                                                        *
+ * j-points-3.0.2                                                      *
  *  - A program to find rational points on Jacobians of genus 2 curves *
  * Copyright (C) 1998, 2006, 2016, 2022, 2026  Michael Stoll           *
  *                                                                     *
@@ -52,15 +52,19 @@
 #define LONG_SHIFT ((LONG_LENGTH == 16) ? 4 : \
                     (LONG_LENGTH == 32) ? 5 : \
 		    (LONG_LENGTH == 64) ? 6 : 0)
-#define LONG_MASK (~(-1L<<LONG_SHIFT))
+#define LONG_MASK ((1L<<LONG_SHIFT) - 1)
 #define MAX_HEIGHT ((LONG_LENGTH == 16) ? 181UL : \
                     (LONG_LENGTH == 32) ? 46340UL : \
 		    (LONG_LENGTH == 64) ? 3037000499UL : 0UL)
+#define MAX_SEARCH_HEIGHT ((MAX_HEIGHT < (1UL << 26)) ? MAX_HEIGHT : (1UL << 26))
+   /* the largest height bound accepted: up to 2^26 the products of
+      row_region stay below 2^53, where the rounding of the ends of its
+      excluded intervals stays within their margins */
 
 #define HALF_MASK ((bit_array)(~((unsigned long)(-1L) / 3)))
 
 typedef unsigned long bit_array;
-#define zero ((bit_array)0);
+#define zero ((bit_array)0)
 
 /* The width of the sieve's passes over the bit array, in words: 1 is the
    scalar walk; 2 or 4 use vectors of that many words through gcc's
@@ -99,7 +103,7 @@ extern unsigned char alive2[64][64];
 extern int use2;         /* the condition at 2, see j-points.c */
 extern void tube_sample(double *, double *, double *, double *, double *, double *, double *);
 extern long num_neg;         /* the intervals where f is negative, see j-points.c */
-extern double neg_grown_lo[], neg_grown_hi[], neg_shrunk_lo[], neg_shrunk_hi[];
+extern double neg_shrunk_lo[], neg_shrunk_hi[];
 extern long degree;
 extern MP_INT coeffs[7];
 extern int sift_bands(long, long, long);

@@ -56,7 +56,7 @@ magma_jobs = {}    # (coeffs, h) -> job number: brute force, all points above th
 for b in blocks:
     a = b['args']
     b['check'] = False
-    if len(a) < 2 or not re.fullmatch(r'-?\d+( -?\d+)*', a[0]) or not a[1].isdigit():
+    if len(a) < 2 or not re.fullmatch(r'-?\d+([ \t]-?\d+)*', a[0]) or not a[1].isdigit():
         b['why'] = 'not a point list (error or usage)'; continue
     coeffs = [int(x) for x in a[0].split()]
     while len(coeffs) > 1 and coeffs[-1] == 0: coeffs.pop()
