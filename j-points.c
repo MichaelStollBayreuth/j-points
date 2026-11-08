@@ -44,7 +44,7 @@
 #define DEFAULT_SIZE 10     /* Default value for the -s option */
 
 #define J_POINTS_VERSION \
-  "This is j-points-3.0.2 by Michael Stoll (2026-11-07).\n\n" \
+  "This is j-points-3.0.2 by Michael Stoll (2026-11-08).\n\n" \
   "Please acknowledge use of the program in published work.\n"
 
 /**************************************************************************

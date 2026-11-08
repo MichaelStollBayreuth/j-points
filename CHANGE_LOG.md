@@ -6,7 +6,7 @@ measured; the README describes the current version.
 From September 2026, work on improving the program was done with the
 help of **Claude Code** (mostly Fable 5.1 and Opus 5.5).
 
-+ 07-Nov-2026, version 3.0.2: the defects found while the program was
++ 08-Nov-2026, version 3.0.2: the defects found while the program was
   modelled in Lean and proved correct there (the project JPointsLean), and
   two changes that the proofs allow. The points printed are the same, apart
   from the height bounds that are no longer accepted.
