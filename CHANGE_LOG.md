@@ -1,54 +1,91 @@
 # j-points: change log
 
-The versions of the program, oldest first, with what changed and what it
+The versions of the program, newest first, with what changed and what it
 measured; the README describes the current version.
 
-+ 25-Oct-1998: started writing version 0.1, taking ratpoints-1.2 as a
-  starting point.
-+ 12-Nov-1998:
-  + Included some enhancements taken from ratpoints-1.4.
-  + Avoid dealing with multiples of reduced triples.
-  + This allows taking only squares for the first coordinate, when f is
-    monic of degree 5.
-+ 24-Nov-1998: eliminated a bug (the program didn't take into account the
-  possibility that the Kummer equation gives a constant).
-+ 23-Apr-2001, version 0.6: changed `!a&1` into `!(a&1)` (no real bug, but
-  it prevented an optimisation from being used).
-+ 02-May-2001, version 1.0:
-  + Split the code into two files: j-points.c and j-sift.c.
-  + Hand-optimised assembler code for j-sift for the i386 architecture.
-  + Makefile.
-  + A few minor bugfixes.
-+ 08-Aug-2006, version 1.1: removed a call `mpz_mul_ui(&fff, &fff,
-  (unsigned long)b)` in check_lifts that let the program miss points of the
-  form (0 : b : c : d) when b was not a square (it was computing b^7 f(c/b)
-  instead of b^6 f(c/b)).
-+ 14-Apr-2016, version 1.2: added code to handle the case when `-a` is
-  specified and the coordinates of the resulting point(s) exceed machine size.
-+ 17-Jan-2022, version 2.0:
-  + The table of primes extended to the 30 primes below 128 (it had the
-    17 primes below 64), and the option `-p` to limit the number of primes
-    considered.
-  + The sieve tests coprimality by a binary gcd instead of the Euclidean one.
-  + kummer_init rewritten.
-  + A Makefile with the targets test, dist and install-bin, and the reference
-    output testbase for the test.
-+ From September 2026, work on improving the program was done with the
-  help of **Claude Code** (mostly Fable 5.1 and Opus 5.5).
-+ 24-Sep-2026, version 2.1: an audit of the code and a test suite. The
-  mathematics and the sieve were found sound; the points of 2.0 are
-  unchanged wherever it printed the right ones. Fixed:
-  + `-N 0` alone silently lost every point of the main search (the first
-    stage was given one prime, the tables none); it is now an unsieved
-    search.
-  + A zero leading coefficient made the program print the origin as a point;
-    zero leading coefficients are now dropped.
-  + `-p` given after `-n` or `-N` left the first stage with more primes than
-    the table had.
-  + With `-a`, a `-f` format other than the default broke the printing of
-    coordinates beyond the machine word; gmp prints them now.
-  + Heights above 2^31 overflowed a difference in the lifting test.
-  + The usage message names every option; the version banner said 1.2.
+From September 2026, work on improving the program was done with the
+help of **Claude Code** (mostly Fable 5.1 and Opus 5.5).
+
++ 07-Nov-2026, version 3.0.2: the defects found while the program was
+  modelled in Lean and proved correct there (the project JPointsLean), and
+  two changes that the proofs allow. The points printed are the same, apart
+  from the height bounds that are no longer accepted.
+  + Height bounds above 2^26 = 67108864 are refused (error 4). Beyond about
+    2 10^8 the real region could exclude words of the bit array that hold
+    points: near x = b/a the two products of `row_region` pass 2^53, and the
+    rounding of their difference exceeded the margins of the excluded
+    intervals (two curves lost points at the heights 215937726 and
+    767091715). Up to 2^26 the rounding stays within the margins.
+  + `TUBE_EPS`, the margin of the analysis of the tube, is 2^-44 instead of
+    1.5e-5. A margin of 2^-47 covers every rounding. The analysis decides a
+    cell only where the polynomial exceeds the margin, `TUBE_EPS` times the
+    absolute value polynomial, which does not shrink with the cell; so where
+    the polynomial is smaller than that, the cells are split down to single
+    words and all of these are kept. With large coefficients the terms cancel
+    and the polynomial is small compared to its absolute value polynomial
+    almost everywhere; with 1.5e-5 the tube then kept nearly the whole box and
+    the program sieved the box. For
+    `y^2 = x^5 + 1003399 x^4 - 997541 x^3 + 1011393 x^2 - 1042117 x + 983211`
+    at height 10^5, the tube kept 2910 of the 3126 words of each row, and the
+    run took 434 s; now it keeps 29 words in 4% of the rows, and the run takes
+    6.5 s. For small coefficients nothing changes.
+  + The build sets `-ffp-contract=off`, so that each operation on doubles
+    rounds by itself, as the margins count it, also on a processor with a
+    fused multiply-add (aarch64); on x86-64 the program is unchanged.
+  + With `-1` the report said "Found 0 rational points" after a first point
+    over (0 : 0 : 1) or a double point; with `-N 0` it announced a mode of
+    the sieve and the condition at 2 that the run does not use.
+  + With `-a`, a `-f` format with the flags `+` and space, `-` and `0`, `0`
+    and a precision, or a lone `.` printed the coordinates beyond the
+    machine word otherwise than the others, since gmp reads these flags
+    otherwise than printf; they print alike now.
+  + The condition at 2 was given up when the modulus 16 admitted every
+    class, which does not make the modulus 64 do so (on
+    `'1 6 5 22 22 8 1'` it admits 6/7 of the classes); it is decided on the
+    modulus 64 now, which saves 20-30% on some curves of low density.
+  + Defects that no input reached: `check_lifts` multiplied by 2^64 + b
+    instead of b for b < 0 when a = 0, and `relprime(0, m)` did not end for
+    odd m; left shifts of negative values, which ISO C leaves undefined; a
+    data race on a counter of the tube's analysis under `-t`, and a leak of
+    the first bit array of the main thread.
+  + The code and data that no input reaches or reads are gone.
+  + The command line is read strictly: an option is a word of two
+    characters (`-quiet` was taken for `-q`), the numbers of primes of
+    `-n`, `-M` and `-N` must not be negative (they meant 0), `-c` refuses
+    infinities, subnormals, overflows, an empty argument and a final comma,
+    and the coefficients are integers separated by spaces or tabs
+    (`'1-6 5 22 22 8 1'` was read as seven coefficients). The messages of
+    errors 3 and 10 say so.
+  + Comments corrected.
++ 30-Oct-2026, version 3.0.1: an audit of the code for what a proof of its
+  correctness in Lean would need, done before the program was modelled
+  there. Fixed:
+  + In the tube and the real region, the bands of 4096 rows ignored the step
+    of the rows when a sieving prime modulo which f6 is not a square divides
+    the first coordinate, so that from height 2048 on rows were skipped
+    that can hold points (3% of the rows of some test curves at 2500 with
+    `-a`; no point of the test suites lay in them).
+  + The real region cast the ends of the excluded ranges of c to longs even
+    when they lay far beyond the row, and then excluded whole rows: a curve
+    with a real root of f beyond about 3e9 next to an interval where f is
+    negative lost points with `-a`. An end beyond the row was also taken for
+    3e9, below the largest height bound.
+  + The Cauchy bound of the isolation of the real roots of f was computed in
+    doubles and could fall below a root for coefficients beyond 2^53; the
+    signs of f were then taken the wrong way round and the real region lost
+    points. It is now computed in integers, and for roots beyond 2^480 the
+    real region is the whole box.
+  + The analysis of the tube could overflow for coefficients beyond about
+    10^130 and then decide a cell on an infinity; it decides nothing there
+    now.
+  + With more than two threads the point over (0 : 0 : 1) and the double
+    points could be printed after the points of later units; they come
+    first again, as with one thread. The number of threads is at most the
+    number of units of work.
+  + A number on the command line that does not fit a long is refused (`-w`
+    took it as 2^63 - 1); `-s` with a size of 2^56 KB or more crashed; and
+    with `-a`, a `-f` format whose conversions have flags or a width printed
+    the coordinates beyond the machine word as garbage.
 + 26-Sep-2026, version 3.0: the sieve made faster, in steps; the points
   printed are the same.
   + The bookkeeping of a row without integer divisions: what the sieve
@@ -150,83 +187,49 @@ measured; the README describes the current version.
     with eight and 11.5x with 24 threads on a 16-core i7 with eight
     performance and eight efficiency cores; plain runs in the tube scale
     less (5-8x there), the sieve of whole rows and of the real region alike.
-+ 30-Oct-2026, version 3.0.1: an audit of the code for what a proof of its
-  correctness in Lean would need, done before the program was modelled
-  there. Fixed:
-  + In the tube and the real region, the bands of 4096 rows ignored the step
-    of the rows when a sieving prime modulo which f6 is not a square divides
-    the first coordinate, so that from height 2048 on rows were skipped
-    that can hold points (3% of the rows of some test curves at 2500 with
-    `-a`; no point of the test suites lay in them).
-  + The real region cast the ends of the excluded ranges of c to longs even
-    when they lay far beyond the row, and then excluded whole rows: a curve
-    with a real root of f beyond about 3e9 next to an interval where f is
-    negative lost points with `-a`. An end beyond the row was also taken for
-    3e9, below the largest height bound.
-  + The Cauchy bound of the isolation of the real roots of f was computed in
-    doubles and could fall below a root for coefficients beyond 2^53; the
-    signs of f were then taken the wrong way round and the real region lost
-    points. It is now computed in integers, and for roots beyond 2^480 the
-    real region is the whole box.
-  + The analysis of the tube could overflow for coefficients beyond about
-    10^130 and then decide a cell on an infinity; it decides nothing there
-    now.
-  + With more than two threads the point over (0 : 0 : 1) and the double
-    points could be printed after the points of later units; they come
-    first again, as with one thread. The number of threads is at most the
-    number of units of work.
-  + A number on the command line that does not fit a long is refused (`-w`
-    took it as 2^63 - 1); `-s` with a size of 2^56 KB or more crashed; and
-    with `-a`, a `-f` format whose conversions have flags or a width printed
-    the coordinates beyond the machine word as garbage.
-+ 07-Nov-2026, version 3.0.2: the defects found while the program was
-  modelled in Lean and proved correct there (the project JPointsLean), and
-  two changes that the proofs allow. The points printed are the same, apart
-  from the height bounds that are no longer accepted.
-  + Height bounds above 2^26 = 67108864 are refused (error 4). Beyond about
-    2 10^8 the real region could exclude words of the bit array that hold
-    points: near x = b/a the two products of `row_region` pass 2^53, and the
-    rounding of their difference exceeded the margins of the excluded
-    intervals (two curves lost points at the heights 215937726 and
-    767091715). Up to 2^26 the rounding stays within the margins.
-  + `TUBE_EPS`, the margin of the analysis of the tube, is 2^-44 instead of
-    1.5e-5. A margin of 2^-47 covers every rounding. The analysis decides a
-    cell only where the polynomial exceeds the margin, `TUBE_EPS` times the
-    absolute value polynomial, which does not shrink with the cell; so where
-    the polynomial is smaller than that, the cells are split down to single
-    words and all of these are kept. With large coefficients the terms cancel
-    and the polynomial is small compared to its absolute value polynomial
-    almost everywhere; with 1.5e-5 the tube then kept nearly the whole box and
-    the program sieved the box. For
-    `y^2 = x^5 + 1003399 x^4 - 997541 x^3 + 1011393 x^2 - 1042117 x + 983211`
-    at height 10^5, the tube kept 2910 of the 3126 words of each row, and the
-    run took 434 s; now it keeps 29 words in 4% of the rows, and the run takes
-    6.5 s. For small coefficients nothing changes.
-  + The build sets `-ffp-contract=off`, so that each operation on doubles
-    rounds by itself, as the margins count it, also on a processor with a
-    fused multiply-add (aarch64); on x86-64 the program is unchanged.
-  + With `-1` the report said "Found 0 rational points" after a first point
-    over (0 : 0 : 1) or a double point; with `-N 0` it announced a mode of
-    the sieve and the condition at 2 that the run does not use.
-  + With `-a`, a `-f` format with the flags `+` and space, `-` and `0`, `0`
-    and a precision, or a lone `.` printed the coordinates beyond the
-    machine word otherwise than the others, since gmp reads these flags
-    otherwise than printf; they print alike now.
-  + The condition at 2 was given up when the modulus 16 admitted every
-    class, which does not make the modulus 64 do so (on
-    `'1 6 5 22 22 8 1'` it admits 6/7 of the classes); it is decided on the
-    modulus 64 now, which saves 20-30% on some curves of low density.
-  + Defects that no input reached: `check_lifts` multiplied by 2^64 + b
-    instead of b for b < 0 when a = 0, and `relprime(0, m)` did not end for
-    odd m; left shifts of negative values, which ISO C leaves undefined; a
-    data race on a counter of the tube's analysis under `-t`, and a leak of
-    the first bit array of the main thread.
-  + The code and data that no input reaches or reads are gone.
-  + The command line is read strictly: an option is a word of two
-    characters (`-quiet` was taken for `-q`), the numbers of primes of
-    `-n`, `-M` and `-N` must not be negative (they meant 0), `-c` refuses
-    infinities, subnormals, overflows, an empty argument and a final comma,
-    and the coefficients are integers separated by spaces or tabs
-    (`'1-6 5 22 22 8 1'` was read as seven coefficients). The messages of
-    errors 3 and 10 say so.
-  + Comments corrected.
++ 24-Sep-2026, version 2.1: an audit of the code and a test suite. The
+  mathematics and the sieve were found sound; the points of 2.0 are
+  unchanged wherever it printed the right ones. Fixed:
+  + `-N 0` alone silently lost every point of the main search (the first
+    stage was given one prime, the tables none); it is now an unsieved
+    search.
+  + A zero leading coefficient made the program print the origin as a point;
+    zero leading coefficients are now dropped.
+  + `-p` given after `-n` or `-N` left the first stage with more primes than
+    the table had.
+  + With `-a`, a `-f` format other than the default broke the printing of
+    coordinates beyond the machine word; gmp prints them now.
+  + Heights above 2^31 overflowed a difference in the lifting test.
+  + The usage message names every option; the version banner said 1.2.
++ From September 2026, work on improving the program was done with the
+  help of **Claude Code** (mostly Fable 5.1 and Opus 5.5).
++ 17-Jan-2022, version 2.0:
+  + The table of primes extended to the 30 primes below 128 (it had the
+    17 primes below 64), and the option `-p` to limit the number of primes
+    considered.
+  + The sieve tests coprimality by a binary gcd instead of the Euclidean one.
+  + kummer_init rewritten.
+  + A Makefile with the targets test, dist and install-bin, and the reference
+    output testbase for the test.
++ 14-Apr-2016, version 1.2: added code to handle the case when `-a` is
+  specified and the coordinates of the resulting point(s) exceed machine size.
++ 08-Aug-2006, version 1.1: removed a call `mpz_mul_ui(&fff, &fff,
+  (unsigned long)b)` in check_lifts that let the program miss points of the
+  form (0 : b : c : d) when b was not a square (it was computing b^7 f(c/b)
+  instead of b^6 f(c/b)).
++ 02-May-2001, version 1.0:
+  + Split the code into two files: j-points.c and j-sift.c.
+  + Hand-optimised assembler code for j-sift for the i386 architecture.
+  + Makefile.
+  + A few minor bugfixes.
++ 23-Apr-2001, version 0.6: changed `!a&1` into `!(a&1)` (no real bug, but
+  it prevented an optimisation from being used).
++ 24-Nov-1998: eliminated a bug (the program didn't take into account the
+  possibility that the Kummer equation gives a constant).
++ 12-Nov-1998:
+  + Included some enhancements taken from ratpoints-1.4.
+  + Avoid dealing with multiples of reduced triples.
+  + This allows taking only squares for the first coordinate, when f is
+    monic of degree 5.
++ 25-Oct-1998: started writing version 0.1, taking ratpoints-1.2 as a
+  starting point.
