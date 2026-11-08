@@ -1,6 +1,15 @@
 # j-points
 
-A program that finds rational points on the Jacobian of a curve of genus 2,
+## The j-points command-line program
+
+This is a program that uses an optimized quadratic sieve algorithm in order
+to find rational points on Jacobian varieties of curves of genus 2.
+
+The program is distributed under the GNU GPL, version 2 (or later).
+
+## Overview
+
+The program finds rational points on the Jacobian of a curve of genus 2,
 given as y^2 = f(x) with f of degree 5 or 6 with integral coefficients, up to
 a bound on the naive height of their images on the Kummer surface. It sieves
 the triples of the first three Kummer coordinates modulo small primes, in the
@@ -46,6 +55,35 @@ references. Magma is only needed to regenerate testbase4; its own search for
 points is a port of j-points and is not used as a reference.
 
 Please acknowledge use of the program in published work.
+
+## Change log
+
+The current version is **j-points-3.0.2** from November 8, 2026.
+
+The history of the versions, with the changes and their reasons, is in
+[CHANGE_LOG.md](CHANGE_LOG.md).
+
+### AI Declaration
+
+The improvements leading to versions 2.1 and later were worked out,
+implemented and measured by Claude Code, with the decisions taken by myself.
+The bug fixes and improvements in version 3.0.2 are informed by the work
+on the verification in Lean (see below), which was also done by
+Claude Code under my guidance.
+
+## Verification in Lean
+
+[JPointsLean](https://github.com/MichaelStollBayreuth/JPointsLean) is a
+model of j-points 3.0.2 in Lean 4 that mirrors the C code function by
+function, with the same loops, tables and bit arrays, together with proofs
+that the model meets a short specification: it finds exactly the points on
+the Kummer surface up to the height bound that come from rational points on
+the Jacobian, each once, in the order in which j-points finds them. Since
+Lean has no semantics of C, the model is linked to the C code by a record of
+which Lean definition models which lines of C, checked against this
+repository, and by differential tests against this program. The
+[blueprint](https://michaelstollbayreuth.github.io/JPointsLean/blueprint/)
+explains what is verified and what one has to trust.
 
 ## Usage
 
@@ -251,12 +289,7 @@ runs grow with the cube of the height bound, the plain runs in the tube
 less. The threads (`-t`) divide these times by up to the number of cores, as
 the change log records.
 
-## Change log
-
-The history of the versions, with their measurements, is in
-[CHANGE_LOG.md](CHANGE_LOG.md).
-
-Michael Stoll, October 1998 - September 2026.
+Michael Stoll, October 1998 - November 2026.
 
 Copyright (C) 1998-2026 Michael Stoll. Distributed under the GNU GPL, version 2
 or (at your option) any later version; see gpl-2.0.txt.
