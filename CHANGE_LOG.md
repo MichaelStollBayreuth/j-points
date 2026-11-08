@@ -34,7 +34,7 @@ measured; the README describes the current version.
   + A Makefile with the targets test, dist and install-bin, and the reference
     output testbase for the test.
 + From September 2026, work on improving the program was done with the
-  help of **Claude Code** (mostly Fable 5.1).
+  help of **Claude Code** (mostly Fable 5.1 and Opus 5.5).
 + 24-Sep-2026, version 2.1: an audit of the code and a test suite. The
   mathematics and the sieve were found sound; the points of 2.0 are
   unchanged wherever it printed the right ones. Fixed:
@@ -190,10 +190,18 @@ measured; the README describes the current version.
     intervals (two curves lost points at the heights 215937726 and
     767091715). Up to 2^26 the rounding stays within the margins.
   + `TUBE_EPS`, the margin of the analysis of the tube, is 2^-44 instead of
-    1.5e-5: a margin of 2^-47 covers every rounding, and the old one sent
-    the cells near the zero curves down to single words. A monic quintic
-    with coefficients near 10^6 at height 10^5 takes 0.77 s instead of
-    158 s; for small coefficients nothing changes.
+    1.5e-5. A margin of 2^-47 covers every rounding. The analysis decides a
+    cell only where the polynomial exceeds the margin, `TUBE_EPS` times the
+    absolute value polynomial, which does not shrink with the cell; so where
+    the polynomial is smaller than that, the cells are split down to single
+    words and all of these are kept. With large coefficients the terms cancel
+    and the polynomial is small compared to its absolute value polynomial
+    almost everywhere; with 1.5e-5 the tube then kept nearly the whole box and
+    the program sieved the box. For
+    `y^2 = x^5 + 1003399 x^4 - 997541 x^3 + 1011393 x^2 - 1042117 x + 983211`
+    at height 10^5, the tube kept 2910 of the 3126 words of each row, and the
+    run took 434 s; now it keeps 29 words in 4% of the rows, and the run takes
+    6.5 s. For small coefficients nothing changes.
   + The build sets `-ffp-contract=off`, so that each operation on doubles
     rounds by itself, as the margins count it, also on a processor with a
     fused multiply-add (aarch64); on x86-64 the program is unchanged.
